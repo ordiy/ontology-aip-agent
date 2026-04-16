@@ -142,10 +142,10 @@ START
       ├─ [WRITE]   → generate_sql → human_approval
       │                              ├─ [approve] → execute_sql → format_result → END
       │                              └─ [reject]  → format_result (cancelled) → END
-      └─ [UNCLEAR] → clarify_question → classify_intent (loop back)
+      └─ [UNCLEAR] → clarify_question → classify_intent (loop back, max 2 retries then give up)
 ```
 
-**3 LLM calls per query** (intent, SQL, formatting). All other nodes are pure logic.
+**3 LLM calls per query** (intent, SQL, formatting). Clarification loop capped at 2 retries to prevent infinite loops. All other nodes are pure logic.
 
 ## 6. Permission Layer
 
