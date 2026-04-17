@@ -63,6 +63,40 @@ def _get_faker_value(prop_name: str, data_type: str):
         return fake.text(max_nb_chars=50)
 
 
+def _topological_sort(classes, fk_info, class_to_table):
+    """Return classes in topological order (parents before children) using Kahn's algorithm."""
+    table_to_class = {v: k for k, v in class_to_table.items()}
+    class_map = {c.name: c for c in classes}
+    class_names = list(class_map.keys())
+
+    deps: dict[str, set[str]] = {name: set() for name in class_names}
+    children: dict[str, set[str]] = {name: set() for name in class_names}
+
+    for cls in classes:
+        tbl = class_to_table[cls.name]
+        for _, parent_table in fk_info.get(tbl, []):
+            parent_name = table_to_class.get(parent_table)
+            if parent_name and parent_name in class_map:
+                deps[cls.name].add(parent_name)
+                children[parent_name].add(cls.name)
+
+    in_degree = {name: len(deps[name]) for name in class_names}
+    queue = [name for name in class_names if in_degree[name] == 0]
+    result = []
+
+    while queue:
+        node = queue.pop(0)
+        result.append(class_map[node])
+        for child in children[node]:
+            in_degree[child] -= 1
+            if in_degree[child] == 0:
+                queue.append(child)
+
+    result_names = {c.name for c in result}
+    result += [class_map[name] for name in class_names if name not in result_names]
+    return result
+
+
 def generate_mock_data(db_path: str, schema: OntologySchema, rows_per_table: int = 100):
     """Generate mock data for all tables based on ontology schema."""
     class_to_table = {c.name: table_name(c.name) for c in schema.classes}
@@ -82,13 +116,10 @@ def generate_mock_data(db_path: str, schema: OntologySchema, rows_per_table: int
             fk_info.setdefault(source_table, []).append((fk_col, target_table))
 
     conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA foreign_keys = ON")
     try:
-        # Insert rows for entity tables, parents first
-        tables_with_deps = set(fk_info.keys())
-        ordered_classes = sorted(
-            schema.classes,
-            key=lambda c: (1 if class_to_table[c.name] in tables_with_deps else 0)
-        )
+        # Insert rows for entity tables, parents first (topological order)
+        ordered_classes = _topological_sort(schema.classes, fk_info, class_to_table)
 
         table_ids: dict[str, list[int]] = {}
         for cls in ordered_classes:
