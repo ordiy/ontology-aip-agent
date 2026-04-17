@@ -41,8 +41,47 @@ def _display_table(rows: list[dict]):
     console.print(table)
 
 
-def _handle_system_command(cmd: str, schema, class_to_table: dict, db_path: str) -> bool:
-    """Handle dot commands. Returns True if handled."""
+def _initialize_domain(domain_name: str, ontologies: dict, config: dict, llm) -> tuple:
+    """Initialize schema, DB, mock data and agent for a given domain.
+
+    Args:
+        domain_name: Name of the domain (matches key in ontologies dict)
+        ontologies: Dict mapping name -> rdf_path
+        config: Loaded config dict
+        llm: LLM client instance (already initialized)
+
+    Returns:
+        Tuple of (schema, db_path, class_to_table, ontology_context, agent)
+    """
+    rdf_path = ontologies[domain_name]
+    
+    console.print(f"\n[cyan]Loading {domain_name} ontology...[/cyan]")
+    schema = parse_ontology(rdf_path)
+
+    db_dir = Path(config["database"]["path"])
+    db_dir.mkdir(parents=True, exist_ok=True)
+    db_path = str(db_dir / f"{domain_name}.db")
+
+    # Recreate DB because ontology structure may differ from previous domain
+    if Path(db_path).exists():
+        Path(db_path).unlink()
+
+    console.print("[cyan]Creating SQLite database...[/cyan]")
+    class_to_table = create_tables(db_path, schema)
+
+    rows_per_table = config["database"]["mock_rows_per_table"]
+    console.print(f"[cyan]Generating mock data ({rows_per_table} rows per table)...[/cyan]")
+    generate_mock_data(db_path, schema, rows_per_table=rows_per_table)
+
+    ontology_context = generate_context(schema)
+    executor = SQLExecutor(db_path, config["permissions"])
+    agent = build_graph(llm, executor, ontology_context)
+
+    return schema, db_path, class_to_table, ontology_context, agent
+
+
+def _handle_system_command(cmd: str, schema, class_to_table: dict, db_path: str, ontologies: dict = None, config: dict = None, llm = None):
+    """Handle dot commands. Returns True if handled, or a dict if action required."""
     parts = cmd.strip().split(maxsplit=1)
     command = parts[0].lower()
 
@@ -71,10 +110,28 @@ def _handle_system_command(cmd: str, schema, class_to_table: dict, db_path: str)
     elif command == ".ontology":
         console.print(generate_context(schema))
         return True
+    elif command == ".switch":
+        if not ontologies or not config or not llm:
+            return True  # handled but can't switch
+        if len(parts) < 2:
+            # Show available domains
+            console.print("[bold]Available domains:[/bold]")
+            for name in sorted(ontologies.keys()):
+                console.print(f"  {name}")
+            return True
+        new_domain = parts[1].lower()
+        if new_domain not in ontologies:
+            available = ", ".join(sorted(ontologies.keys()))
+            console.print(f"[red]Domain '{new_domain}' not found. Available: {available}[/red]")
+            return True
+        # Return special marker so main() knows to switch
+        return {"switch_to": new_domain}
     elif command == ".help":
         console.print("  .tables          - List all tables")
         console.print("  .schema <table>  - Show table structure")
         console.print("  .ontology        - Show ontology relationships")
+        console.print("  .switch          - List available domains")
+        console.print("  .switch <domain> - Switch to domain")
         console.print("  .quit            - Exit")
         return True
 
@@ -104,27 +161,6 @@ def main():
     except (ValueError, IndexError):
         domain_name = names[0]
 
-    rdf_path = ontologies[domain_name]
-
-    # Initialize
-    console.print(f"\n[cyan]Loading {domain_name} ontology...[/cyan]")
-    schema = parse_ontology(rdf_path)
-
-    db_dir = Path(config["database"]["path"])
-    db_dir.mkdir(parents=True, exist_ok=True)
-    db_path = str(db_dir / f"{domain_name}.db")
-
-    # Recreate DB each startup for clean state
-    if Path(db_path).exists():
-        Path(db_path).unlink()
-
-    console.print("[cyan]Creating SQLite database...[/cyan]")
-    class_to_table = create_tables(db_path, schema)
-
-    rows_per_table = config["database"]["mock_rows_per_table"]
-    console.print(f"[cyan]Generating mock data ({rows_per_table} rows per table)...[/cyan]")
-    generate_mock_data(db_path, schema, rows_per_table=rows_per_table)
-
     console.print("[cyan]Connecting to LLM...[/cyan]")
     llm = VertexGeminiClient(
         project=config["vertex"]["project"],
@@ -132,9 +168,9 @@ def main():
         model_name=config["llm"]["model"],
     )
 
-    executor = SQLExecutor(db_path, config["permissions"])
-    ontology_context = generate_context(schema)
-    agent = build_graph(llm, executor, ontology_context)
+    schema, db_path, class_to_table, ontology_context, agent = _initialize_domain(
+        domain_name, ontologies, config, llm
+    )
 
     console.print(f"[green]Ready. Domain: {schema.domain}[/green]\n")
 
@@ -150,7 +186,19 @@ def main():
             continue
 
         if user_input.startswith("."):
-            if _handle_system_command(user_input, schema, class_to_table, db_path):
+            result = _handle_system_command(
+                user_input, schema, class_to_table, db_path, ontologies, config, llm
+            )
+            if isinstance(result, dict) and "switch_to" in result:
+                new_domain = result["switch_to"]
+                console.print(f"[cyan]Switching to domain: {new_domain}...[/cyan]")
+                schema, db_path, class_to_table, ontology_context, agent = _initialize_domain(
+                    new_domain, ontologies, config, llm
+                )
+                domain_name = new_domain
+                console.print(f"[green]Switched to domain: {domain_name} ({schema.domain})[/green]")
+                continue
+            elif result:
                 continue
 
         # Run agent
