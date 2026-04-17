@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF
+    xml:base="http://example.org/ontology/manufacturing-plant/"
+    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+    xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+    xmlns:owl="http://www.w3.org/2002/07/owl#"
+    xmlns:xsd="http://www.w3.org/2001/XMLSchema#"
+    xmlns:ont="http://example.org/ontology/manufacturing-plant/">
+
+    <owl:Ontology rdf:about="http://example.org/ontology/manufacturing-plant/">
+        <rdfs:label>Manufacturing Plant</rdfs:label>
+    </owl:Ontology>
+
+    <owl:Class rdf:about="http://example.org/ontology/manufacturing-plant/Product">
+        <rdfs:label>Product</rdfs:label>
+    </owl:Class>
+    <owl:Class rdf:about="http://example.org/ontology/manufacturing-plant/WorkOrder">
+        <rdfs:label>WorkOrder</rdfs:label>
+    </owl:Class>
+    <owl:Class rdf:about="http://example.org/ontology/manufacturing-plant/Machine">
+        <rdfs:label>Machine</rdfs:label>
+    </owl:Class>
+    <owl:Class rdf:about="http://example.org/ontology/manufacturing-plant/Material">
+        <rdfs:label>Material</rdfs:label>
+    </owl:Class>
+    <owl:Class rdf:about="http://example.org/ontology/manufacturing-plant/Supplier">
+        <rdfs:label>Supplier</rdfs:label>
+    </owl:Class>
+
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/product_productId">
+        <rdfs:label>productId</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Product"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <ont:isIdentifier rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</ont:isIdentifier>
+        <ont:propertyType>string</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/product_name">
+        <rdfs:label>name</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Product"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <ont:propertyType>string</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/product_sku">
+        <rdfs:label>sku</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Product"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <ont:propertyType>string</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/product_unitCost">
+        <rdfs:label>unitCost</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Product"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#decimal"/>
+        <ont:propertyType>decimal</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/product_category">
+        <rdfs:label>category</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Product"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <ont:propertyType>string</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/workorder_workOrderId">
+        <rdfs:label>workOrderId</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/WorkOrder"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <ont:isIdentifier rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</ont:isIdentifier>
+        <ont:propertyType>string</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/workorder_startDate">
+        <rdfs:label>startDate</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/WorkOrder"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#date"/>
+        <ont:propertyType>date</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/workorder_endDate">
+        <rdfs:label>endDate</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/WorkOrder"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#date"/>
+        <ont:propertyType>date</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/workorder_status">
+        <rdfs:label>status</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/WorkOrder"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <ont:propertyType>string</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/workorder_quantity">
+        <rdfs:label>quantity</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/WorkOrder"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#integer"/>
+        <ont:propertyType>integer</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/machine_machineId">
+        <rdfs:label>machineId</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Machine"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <ont:isIdentifier rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</ont:isIdentifier>
+        <ont:propertyType>string</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/machine_name">
+        <rdfs:label>name</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Machine"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <ont:propertyType>string</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/machine_type">
+        <rdfs:label>type</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Machine"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <ont:propertyType>string</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/machine_status">
+        <rdfs:label>status</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Machine"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <ont:propertyType>string</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/machine_lastMaintenance">
+        <rdfs:label>lastMaintenance</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Machine"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#date"/>
+        <ont:propertyType>date</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/material_materialId">
+        <rdfs:label>materialId</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Material"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <ont:isIdentifier rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</ont:isIdentifier>
+        <ont:propertyType>string</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/material_name">
+        <rdfs:label>name</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Material"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <ont:propertyType>string</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/material_unit">
+        <rdfs:label>unit</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Material"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <ont:propertyType>string</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/material_stockQty">
+        <rdfs:label>stockQty</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Material"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#decimal"/>
+        <ont:propertyType>decimal</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/material_costPerUnit">
+        <rdfs:label>costPerUnit</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Material"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#decimal"/>
+        <ont:propertyType>decimal</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/supplier_supplierId">
+        <rdfs:label>supplierId</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Supplier"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <ont:isIdentifier rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</ont:isIdentifier>
+        <ont:propertyType>string</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/supplier_name">
+        <rdfs:label>name</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Supplier"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <ont:propertyType>string</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/supplier_email">
+        <rdfs:label>email</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Supplier"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <ont:propertyType>string</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/supplier_country">
+        <rdfs:label>country</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Supplier"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <ont:propertyType>string</ont:propertyType>
+    </owl:DatatypeProperty>
+    <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/supplier_rating">
+        <rdfs:label>rating</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Supplier"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#decimal"/>
+        <ont:propertyType>decimal</ont:propertyType>
+    </owl:DatatypeProperty>
+
+    <owl:ObjectProperty rdf:about="http://example.org/ontology/manufacturing-plant/work_order_produces_product">
+        <rdfs:label>work_order_produces_product</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/WorkOrder"/>
+        <rdfs:range rdf:resource="http://example.org/ontology/manufacturing-plant/Product"/>
+        <ont:cardinality>many-to-one</ont:cardinality>
+    </owl:ObjectProperty>
+    <owl:ObjectProperty rdf:about="http://example.org/ontology/manufacturing-plant/machine_executes_work_order">
+        <rdfs:label>machine_executes_work_order</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Machine"/>
+        <rdfs:range rdf:resource="http://example.org/ontology/manufacturing-plant/WorkOrder"/>
+        <ont:cardinality>one-to-many</ont:cardinality>
+    </owl:ObjectProperty>
+    <owl:ObjectProperty rdf:about="http://example.org/ontology/manufacturing-plant/work_order_uses_material">
+        <rdfs:label>work_order_uses_material</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/WorkOrder"/>
+        <rdfs:range rdf:resource="http://example.org/ontology/manufacturing-plant/Material"/>
+        <ont:cardinality>many-to-many</ont:cardinality>
+    </owl:ObjectProperty>
+    <owl:ObjectProperty rdf:about="http://example.org/ontology/manufacturing-plant/supplier_provides_material">
+        <rdfs:label>supplier_provides_material</rdfs:label>
+        <rdfs:domain rdf:resource="http://example.org/ontology/manufacturing-plant/Supplier"/>
+        <rdfs:range rdf:resource="http://example.org/ontology/manufacturing-plant/Material"/>
+        <ont:cardinality>one-to-many</ont:cardinality>
+    </owl:ObjectProperty>
+</rdf:RDF>
