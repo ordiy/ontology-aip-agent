@@ -1,0 +1,18 @@
+llm:
+  provider: vertex
+  model: gemini-3.1-pro-preview
+  temperature: 0.0
+
+vertex:
+  project: mydevproject20260304
+  location: global
+
+database:
+  path: ./data/
+  mock_rows_per_table: 100
+
+permissions:
+  read: auto
+  write: confirm
+  delete: confirm
+  admin: deny
