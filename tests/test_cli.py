@@ -58,3 +58,43 @@ def test_switch_no_args_shows_domains():
         assert any("Available domains" in call for call in calls)
         assert any("retail" in call for call in calls)
         assert any("healthcare" in call for call in calls)
+
+def test_history_empty(capsys):
+    """_handle_system_command .history with empty list prints 'No history yet'."""
+    mock_schema = MagicMock()
+    result = _handle_system_command(
+        ".history",
+        mock_schema, {}, "test.db",
+        history=[]
+    )
+    assert result is True
+    captured = capsys.readouterr()
+    assert "No history" in captured.out
+
+def test_history_shows_entries(capsys):
+    """_handle_system_command .history shows past queries."""
+    mock_schema = MagicMock()
+    history = [
+        {"query": "How many customers?", "intent": "READ", "sql": "SELECT COUNT(*) FROM customers", "response": "There are 10 customers."},
+    ]
+    result = _handle_system_command(
+        ".history",
+        mock_schema, {}, "test.db",
+        history=history
+    )
+    assert result is True
+    captured = capsys.readouterr()
+    assert "How many customers?" in captured.out
+    assert "SELECT COUNT(*) FROM customers" in captured.out
+    assert "There are 10 customers." in captured.out
+
+def test_history_clear_returns_signal():
+    """_handle_system_command .history clear returns clear_history signal."""
+    mock_schema = MagicMock()
+    result = _handle_system_command(
+        ".history clear",
+        mock_schema, {}, "test.db",
+        history=[{"query": "test", "intent": "READ", "sql": "", "response": ""}]
+    )
+    assert isinstance(result, dict)
+    assert result.get("clear_history") is True

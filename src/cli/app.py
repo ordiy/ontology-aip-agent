@@ -80,7 +80,7 @@ def _initialize_domain(domain_name: str, ontologies: dict, config: dict, llm) ->
     return schema, db_path, class_to_table, ontology_context, agent
 
 
-def _handle_system_command(cmd: str, schema, class_to_table: dict, db_path: str, ontologies: dict = None, config: dict = None, llm = None):
+def _handle_system_command(cmd: str, schema, class_to_table: dict, db_path: str, ontologies: dict = None, config: dict = None, llm = None, history: list = None):
     """Handle dot commands. Returns True if handled, or a dict if action required."""
     parts = cmd.strip().split(maxsplit=1)
     command = parts[0].lower()
@@ -110,6 +110,27 @@ def _handle_system_command(cmd: str, schema, class_to_table: dict, db_path: str,
     elif command == ".ontology":
         console.print(generate_context(schema))
         return True
+    elif command == ".history":
+        if len(parts) > 1 and parts[1].lower() == "clear":
+            # Signal main() to clear history
+            return {"clear_history": True}
+        
+        # Display conversation history as a numbered list
+        if not history:
+            console.print("[dim]No history yet.[/dim]")
+            return True
+            
+        for i, entry in enumerate(history, 1):
+            console.print(f"\n[bold cyan][{i}][/bold cyan] [dim]{entry['intent']}[/dim] {entry['query']}")
+            if entry.get('sql'):
+                sql = entry['sql']
+                # Truncate display to avoid terminal clutter
+                console.print(f"    [dim]SQL:[/dim] {sql[:80]}{'...' if len(sql) > 80 else ''}")
+            if entry.get('response'):
+                resp = entry['response']
+                # Truncate display to avoid terminal clutter
+                console.print(f"    [dim]→[/dim] {resp[:100]}{'...' if len(resp) > 100 else ''}")
+        return True
     elif command == ".switch":
         if not ontologies or not config or not llm:
             return True  # handled but can't switch
@@ -130,6 +151,8 @@ def _handle_system_command(cmd: str, schema, class_to_table: dict, db_path: str,
         console.print("  .tables          - List all tables")
         console.print("  .schema <table>  - Show table structure")
         console.print("  .ontology        - Show ontology relationships")
+        console.print("  .history         - Show conversation history")
+        console.print("  .history clear   - Clear conversation history")
         console.print("  .switch          - List available domains")
         console.print("  .switch <domain> - Switch to domain")
         console.print("  .quit            - Exit")
@@ -174,6 +197,9 @@ def main():
 
     console.print(f"[green]Ready. Domain: {schema.domain}[/green]\n")
 
+    # Initialize before the conversation loop
+    conversation_history = []  # List of {"query": str, "intent": str, "sql": str, "response": str}
+
     # Conversation loop
     while True:
         try:
@@ -187,17 +213,24 @@ def main():
 
         if user_input.startswith("."):
             result = _handle_system_command(
-                user_input, schema, class_to_table, db_path, ontologies, config, llm
+                user_input, schema, class_to_table, db_path,
+                ontologies=ontologies, config=config, llm=llm,
+                history=conversation_history
             )
-            if isinstance(result, dict) and "switch_to" in result:
-                new_domain = result["switch_to"]
-                console.print(f"[cyan]Switching to domain: {new_domain}...[/cyan]")
-                schema, db_path, class_to_table, ontology_context, agent = _initialize_domain(
-                    new_domain, ontologies, config, llm
-                )
-                domain_name = new_domain
-                console.print(f"[green]Switched to domain: {domain_name} ({schema.domain})[/green]")
-                continue
+            if isinstance(result, dict):
+                if "switch_to" in result:
+                    new_domain = result["switch_to"]
+                    console.print(f"[cyan]Switching to domain: {new_domain}...[/cyan]")
+                    schema, db_path, class_to_table, ontology_context, agent = _initialize_domain(
+                        new_domain, ontologies, config, llm
+                    )
+                    domain_name = new_domain
+                    console.print(f"[green]Switched to domain: {domain_name} ({schema.domain})[/green]")
+                    continue
+                elif "clear_history" in result:
+                    conversation_history.clear()
+                    console.print("[dim]History cleared.[/dim]")
+                    continue
             elif result:
                 continue
 
@@ -257,6 +290,13 @@ def main():
         if result.get("response"):
             console.print(f"\n[bold]{result['response']}[/bold]\n")
 
+        # Track conversation history
+        conversation_history.append({
+            "query": user_input,
+            "intent": result.get("intent", ""),
+            "sql": result.get("generated_sql", ""),
+            "response": result.get("response", ""),
+        })
 
 if __name__ == "__main__":
     main()
