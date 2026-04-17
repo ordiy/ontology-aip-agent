@@ -25,13 +25,13 @@ def table_name(class_name: str) -> str:
     name = re.sub(r"(?<=[a-z0-9])([A-Z])", r"_\1", class_name)
     name = re.sub(r"(?<=[A-Z])([A-Z][a-z])", r"_\1", name)
     name = name.lower().replace("-", "_").replace(" ", "_")
-    # Simple pluralize
-    if name.endswith("y") and not name.endswith("ey"):
+    # Pluralize
+    if name.endswith("y") and len(name) >= 2 and name[-2] not in "aeiou":
+        # consonant+y → ies (e.g. category → categories)
         name = name[:-1] + "ies"
-    elif name.endswith(("ses", "shes", "ches", "xes", "zes")):
+    elif name.endswith(("s", "sh", "ch", "x", "z")):
+        # sibilant endings → add es (e.g. address → addresses, status → statuses)
         name = name + "es"
-    elif name.endswith("s"):
-        name = name
     else:
         name = name + "s"
     return name
@@ -107,10 +107,12 @@ def generate_context(schema: OntologySchema) -> str:
 
 
 def _fk_col_name(table_name_str: str) -> str:
-    """Derive FK column name from table name (strip plural suffix + _id)."""
+    """Derive FK column name from table name (de-pluralize + _id)."""
     if table_name_str.endswith("ies"):
         singular = table_name_str[:-3] + "y"
-    elif table_name_str.endswith(("ses", "shes", "ches", "xes", "zes")):
+    elif table_name_str.endswith("ses") or table_name_str.endswith("shes") or \
+         table_name_str.endswith("ches") or table_name_str.endswith("xes") or \
+         table_name_str.endswith("zes"):
         singular = table_name_str[:-2]
     elif table_name_str.endswith("s"):
         singular = table_name_str[:-1]
