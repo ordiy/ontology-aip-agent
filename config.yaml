@@ -7,6 +7,11 @@ vertex:
   project: mydevproject20260304
   location: global
 
+ollama:
+  host: http://localhost:11434
+  model: llama3
+  timeout: 120
+
 database:
   path: ./data/
   mock_rows_per_table: 100

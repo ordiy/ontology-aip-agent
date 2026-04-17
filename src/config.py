@@ -17,6 +17,7 @@ DEFAULTS = {
     "ollama": {
         "host": "http://localhost:11434",
         "model": "llama3",
+        "timeout": 120,
     },
     "database": {
         "path": "./data/",

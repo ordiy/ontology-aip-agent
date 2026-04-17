@@ -185,11 +185,24 @@ def main():
         domain_name = names[0]
 
     console.print("[cyan]Connecting to LLM...[/cyan]")
-    llm = VertexGeminiClient(
-        project=config["vertex"]["project"],
-        location=config["vertex"]["location"],
-        model_name=config["llm"]["model"],
-    )
+    
+    # Choose LLM provider based on config
+    provider = config["llm"].get("provider", "vertex")
+    if provider == "ollama":
+        from src.llm.ollama import OllamaClient
+        llm = OllamaClient(
+            host=config["ollama"]["host"],
+            model_name=config["ollama"]["model"],
+            timeout=config["ollama"]["timeout"],
+        )
+        console.print(f"[cyan]Using Ollama: {config['ollama']['model']} at {config['ollama']['host']}[/cyan]")
+    else:
+        # Default: Vertex AI
+        llm = VertexGeminiClient(
+            project=config["vertex"]["project"],
+            location=config["vertex"]["location"],
+            model_name=config["llm"]["model"],
+        )
 
     schema, db_path, class_to_table, ontology_context, agent = _initialize_domain(
         domain_name, ontologies, config, llm
