@@ -15,17 +15,22 @@ class VertexGeminiClient:
         system_prompt: str | None = None,
         temperature: float = 0.0,
     ) -> str:
+        # system_instruction must be passed at model construction, not generate_content
+        if system_prompt:
+            model = GenerativeModel(self._model_name, system_instruction=system_prompt)
+        else:
+            model = self._model
+
         contents = []
         for msg in messages:
-            role = 'user' if msg['role'] == 'user' else 'model'
-            contents.append(Content(role=role, parts=[Part.from_text(msg['content'])]))
+            role = "user" if msg["role"] == "user" else "model"
+            contents.append(Content(role=role, parts=[Part.from_text(msg["content"])]))
 
-        generation_config = {'temperature': temperature, 'max_output_tokens': 2048}
+        generation_config = {"temperature": temperature, "max_output_tokens": 2048}
 
-        response = self._model.generate_content(
+        response = model.generate_content(
             contents,
             generation_config=generation_config,
-            system_instruction=system_prompt,
         )
         return response.text
 
