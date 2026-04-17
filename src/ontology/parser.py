@@ -61,7 +61,8 @@ _XSD_MAP = {
 
 
 def _uri_local_name(uri: str) -> str:
-    """Extract local name from a URI (after last / or #)."""
+    """Extract local name from a URI (after last # or /, skipping trailing separators)."""
+    uri = uri.rstrip("/#")
     if "#" in uri:
         return uri.rsplit("#", 1)[1]
     return uri.rsplit("/", 1)[1] if "/" in uri else uri
@@ -75,17 +76,17 @@ def parse_ontology(rdf_path: str) -> OntologySchema:
     g = Graph()
     g.parse(str(path), format="xml")
 
-    # Detect ont: namespace from the ontology's base URI
-    ont_ns = None
-    for s, p, o in g.triples((None, RDF.type, OWL.Ontology)):
-        ont_ns = Namespace(str(s))
-        break
+    # Detect ont: namespace from the declared xmlns:ont prefix
+    ont_prefix_uri = dict(g.namespaces()).get("ont")
+    ont_ns = Namespace(str(ont_prefix_uri)) if ont_prefix_uri else None
 
-    # Extract domain name
+    # Extract domain name from the first owl:Ontology triple that has a rdfs:label
     domain = "Unknown"
     for s, p, o in g.triples((None, RDF.type, OWL.Ontology)):
         for _, _, label in g.triples((s, RDFS.label, None)):
             domain = str(label)
+            break
+        if domain != "Unknown":
             break
 
     # Extract classes
