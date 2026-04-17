@@ -1,4 +1,5 @@
 from pathlib import Path
+import copy
 import os
 import yaml
 
@@ -48,12 +49,14 @@ def _deep_merge(base: dict, override: dict) -> dict:
 
 
 def load_config(config_path: str = "config.yaml") -> dict:
-    config = {k: dict(v) for k, v in DEFAULTS.items()}
+    config = copy.deepcopy(DEFAULTS)
 
     path = Path(config_path)
     if path.exists():
         with open(path) as f:
-            file_config = yaml.safe_load(f) or {}
+            file_config = yaml.safe_load(f)
+            if not isinstance(file_config, dict):
+                file_config = {}
         config = _deep_merge(config, file_config)
 
     for env_var, (section, key) in ENV_OVERRIDES.items():
