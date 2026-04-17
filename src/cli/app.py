@@ -248,6 +248,8 @@ def main():
             "response": "",
             "clarify_count": 0,
             "error": None,
+            "sql_retry_count": 0,
+            "sql_error_message": None,
         }
 
         result = agent.invoke(initial_state)

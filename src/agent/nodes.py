@@ -28,20 +28,39 @@ def classify_intent(state: AgentState, llm: LLMClient) -> dict:
 
 
 def generate_sql(state: AgentState, llm: LLMClient) -> dict:
+    """Generate SQL from natural language query using the LLM.
+
+    If sql_error_message is set in state, this is a retry — include the
+    previous SQL and error in the prompt so LLM can fix it.
+    """
     system = (
         "You are a SQL generator for a SQLite database. "
         "Given the database schema and a user query, generate ONLY the SQL statement. "
         "Do not include any explanation, markdown, or code fences. "
         "Output ONLY the raw SQL statement."
     )
+    user_content = (
+        f"Database schema:\n{state['ontology_context']}\n\n"
+        f"User query: {state['user_query']}\n"
+        f"Intent: {state['intent']}"
+    )
+
+    # Check if this is a retry with error feedback
+    sql_error = state.get("sql_error_message")
+    if sql_error:
+        # Include previous failed SQL and error message to guide the fix
+        error_context = (
+            f"\n\nPREVIOUS ATTEMPT FAILED:\n"
+            f"SQL: {state.get('generated_sql', '')}\n"
+            f"Error: {sql_error}\n"
+            f"Please fix the SQL to avoid this error."
+        )
+        user_content += error_context  # append to existing user message
+
     messages = [
         {
             "role": "user",
-            "content": (
-                f"Database schema:\n{state['ontology_context']}\n\n"
-                f"User query: {state['user_query']}\n"
-                f"Intent: {state['intent']}"
-            ),
+            "content": user_content,
         },
     ]
     response = llm.chat(messages, system_prompt=system, temperature=0.0)
@@ -66,23 +85,55 @@ def generate_sql(state: AgentState, llm: LLMClient) -> dict:
 
 
 def execute_sql_node(state: AgentState, executor: SQLExecutor) -> dict:
-    sql = state["generated_sql"]
-    approved = state.get("approved", False)
+    """Execute the generated SQL statement.
+
+    On SQL syntax/runtime errors (not permission denials), signals the graph
+    to retry SQL generation with the error message as feedback.
+    Only retries once (sql_retry_count >= 1 → propagate error to format_result).
+    """
+    sql = state.get("generated_sql", "")
+    approved = state.get("approved")
+    permission_level = state.get("permission_level", "auto")
+    retry_count = state.get("sql_retry_count", 0)
 
     try:
-        result = executor.execute(sql, approved=approved or state.get("permission_level") == "auto")
+        result = executor.execute(sql, approved=(approved is True) or permission_level == "auto")
     except PermissionDenied as e:
-        return {"error": str(e), "query_result": None, "affected_rows": 0}
+        return {"error": str(e), "query_result": None, "affected_rows": 0, "sql_error_message": None}
     except Exception as e:
-        return {"error": str(e), "query_result": None, "affected_rows": 0}
+        # If executor raises an exception (e.g., sqlite3.Error)
+        error_msg = str(e)
+        if retry_count >= 1:
+            return {"error": error_msg, "sql_error_message": None}
+        return {
+            "sql_error_message": error_msg,
+            "sql_retry_count": retry_count + 1,
+            "error": None,
+        }
+
+    # Handle the case where the executor returns an error string instead of raising (used in tests)
+    if result.error:
+        # If this is already a retry, don't retry again — propagate the error
+        if retry_count >= 1:
+            return {"error": result.error, "sql_error_message": None}
+
+        # First failure: signal graph to retry SQL generation with error feedback
+        # We store the error message so generate_sql can use it
+        return {
+            "sql_error_message": result.error,
+            "sql_retry_count": retry_count + 1,
+            "error": None,  # Clear error so format_result isn't triggered
+        }
 
     if result.needs_approval:
         return {"approved": None}  # signal that approval is needed
 
+    rows = result.rows or []
     return {
-        "query_result": result.rows,
+        "query_result": rows,
         "affected_rows": result.affected_rows,
         "error": None,
+        "sql_error_message": None,
     }
 
 

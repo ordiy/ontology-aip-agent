@@ -14,3 +14,5 @@ class AgentState(TypedDict, total=False):
     response: str
     clarify_count: int       # track clarification retries (max 2)
     error: str | None
+    sql_retry_count: int     # Tracks how many SQL retries have happened (max 1)
+    sql_error_message: str | None # Error message from failed SQL execution

@@ -92,3 +92,81 @@ def test_format_result_read():
     }
     result = format_result(state, llm)
     assert "42" in result["response"]
+
+from unittest.mock import MagicMock
+
+def test_execute_sql_node_signals_retry_on_first_error():
+    """execute_sql_node should signal retry (not set error) on first SQL failure."""
+    from src.agent.nodes import execute_sql_node
+    from src.database.executor import SQLExecutor, SQLResult
+
+    # Mock executor that returns an error
+    mock_executor = MagicMock()
+    mock_executor.execute.return_value = SQLResult(
+        operation="read", rows=None, affected_rows=0,
+        needs_approval=False, error="no such table: nonexistent"
+    )
+
+    state = {
+        "generated_sql": "SELECT * FROM nonexistent",
+        "permission_level": "auto",
+        "approved": None,
+        "sql_retry_count": 0,
+    }
+    result = execute_sql_node(state, mock_executor)
+
+    # Should signal retry, not propagate error
+    assert result.get("sql_error_message") == "no such table: nonexistent"
+    assert result.get("sql_retry_count") == 1
+    assert result.get("error") is None  # Error NOT propagated on first attempt
+
+
+def test_execute_sql_node_propagates_error_on_second_failure():
+    """execute_sql_node should propagate error after 1 retry (sql_retry_count >= 1)."""
+    from src.agent.nodes import execute_sql_node
+    from src.database.executor import SQLExecutor, SQLResult
+
+    mock_executor = MagicMock()
+    mock_executor.execute.return_value = SQLResult(
+        operation="read", rows=None, affected_rows=0,
+        needs_approval=False, error="syntax error"
+    )
+
+    state = {
+        "generated_sql": "SELECT INVALID",
+        "permission_level": "auto",
+        "approved": None,
+        "sql_retry_count": 1,  # Already retried once
+    }
+    result = execute_sql_node(state, mock_executor)
+
+    # Should propagate the error after retry
+    assert result.get("error") == "syntax error"
+    assert result.get("sql_error_message") is None
+
+
+def test_generate_sql_includes_error_context_on_retry():
+    """generate_sql should include previous error in prompt when sql_error_message is set."""
+    from src.agent.nodes import generate_sql
+
+    captured_messages = []
+
+    class CapturingFakeLLM:
+        def chat(self, messages, system_prompt=None, temperature=0.0):
+            captured_messages.extend(messages)
+            return "SELECT COUNT(*) FROM customers"
+        def get_model_name(self):
+            return "fake"
+
+    state = {
+        "user_query": "count customers",
+        "ontology_context": "Table: customers",
+        "intent": "READ",
+        "generated_sql": "SELECT * FROM custmers",  # Old broken SQL
+        "sql_error_message": "no such table: custmers",
+        "sql_retry_count": 1,
+    }
+    result = generate_sql(state, CapturingFakeLLM())
+    # The messages sent to LLM should contain error context
+    all_content = " ".join(m.get("content", "") for m in captured_messages)
+    assert "custmers" in all_content or "no such table" in all_content
