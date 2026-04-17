@@ -67,3 +67,55 @@ def test_write_without_approval_needs_it(executor):
 def test_invalid_sql_raises(executor):
     with pytest.raises(Exception):
         executor.execute("SELECTT * FROM users")
+
+def test_query_timeout(tmp_path):
+    """SQLExecutor should return timeout error for queries that exceed 5 seconds."""
+    import time
+    from unittest.mock import patch
+    from src.database.executor import SQLExecutor, QUERY_TIMEOUT_SECONDS
+
+    # Create a real DB
+    db_path = str(tmp_path / "timeout_test.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE t (x INTEGER)")
+    conn.commit()
+    conn.close()
+
+    executor = SQLExecutor(db_path, {"read": "auto", "write": "confirm", "delete": "confirm", "admin": "deny"})
+
+    # Patch the internal execution to simulate a slow query
+    original_inner = executor._execute_sql_inner
+
+    def slow_execute(sql, classification):
+        time.sleep(QUERY_TIMEOUT_SECONDS + 1)  # Always exceeds timeout
+        return original_inner(sql, classification)
+
+    with patch.object(executor, "_execute_sql_inner", slow_execute):
+        start = time.time()
+        result = executor.execute("SELECT * FROM t")
+        elapsed = time.time() - start
+
+    # Should have returned within ~timeout+1s (not hung forever)
+    assert elapsed < QUERY_TIMEOUT_SECONDS + 3
+    assert result.error is not None
+    assert "timed out" in result.error.lower()
+
+
+def test_normal_query_completes_within_timeout(tmp_path):
+    """Normal queries should complete successfully without triggering timeout."""
+    import sqlite3 as _sqlite3
+    from src.database.executor import SQLExecutor
+
+    db_path = str(tmp_path / "normal_test.db")
+    conn = _sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE items (id INTEGER PRIMARY KEY, val TEXT)")
+    conn.execute("INSERT INTO items VALUES (1, 'hello')")
+    conn.commit()
+    conn.close()
+
+    executor = SQLExecutor(db_path, {"read": "auto", "write": "confirm", "delete": "confirm", "admin": "deny"})
+    result = executor.execute("SELECT * FROM items")
+
+    assert result.error is None
+    assert len(result.rows) == 1
+    assert result.rows[0]["val"] == "hello"

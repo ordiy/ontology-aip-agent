@@ -3,7 +3,8 @@ from pathlib import Path
 from src.config import load_config
 
 
-def test_load_config_from_yaml(tmp_path):
+def test_load_config_from_yaml(tmp_path, monkeypatch):
+    monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
     config_file = tmp_path / "config.yaml"
     config_file.write_text(
         "llm:\n"

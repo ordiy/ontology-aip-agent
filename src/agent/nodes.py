@@ -138,15 +138,21 @@ def execute_sql_node(state: AgentState, executor: SQLExecutor) -> dict:
 
 
 def format_result(state: AgentState, llm: LLMClient) -> dict:
-    if state.get("error"):
-        return {"response": f"Error: {state['error']}"}
+    error_msg = state.get("error")
+    
+    if error_msg and "timed out" not in error_msg.lower():
+        return {"response": f"Error: {error_msg}"}
 
     system = (
         "You are a helpful data assistant. Summarize the query result in a clear, "
-        "concise natural language response. Be specific with numbers and names."
+        "concise natural language response. Be specific with numbers and names.\n"
+        "If the error message mentions \"timed out\", tell the user their query was too complex "
+        "and suggest they break it into simpler queries or use .tables to check available data."
     )
 
-    if state.get("query_result") is not None:
+    if error_msg:
+        result_str = f"Error: {error_msg}"
+    elif state.get("query_result") is not None:
         result_str = str(state["query_result"][:20])  # limit for context
     else:
         result_str = f"Affected rows: {state.get('affected_rows', 0)}"
