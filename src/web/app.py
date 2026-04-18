@@ -135,6 +135,17 @@ def _display_results(result: dict):
         if rows:
             df = pd.DataFrame(rows)
             st.dataframe(df, use_container_width=True)
+
+            # CSV export — let users download the raw result set for further analysis
+            csv_data = df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="⬇ Download CSV",
+                data=csv_data,
+                file_name="query_result.csv",
+                mime="text/csv",
+                key=f"csv_download_{id(result)}",
+            )
+
             if len(rows) > 50:
                 st.caption(f"Showing all {len(rows)} rows")
 
