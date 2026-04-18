@@ -10,9 +10,17 @@ The UI is intentionally minimal — it mirrors the CLI's behavior:
 State is managed via st.session_state to persist across Streamlit reruns.
 """
 
+import sys
 import streamlit as st
 from pathlib import Path
 import pandas as pd
+
+# When launched via `streamlit run src/web/app.py`, Streamlit adds the script's
+# directory (src/web/) to sys.path instead of the project root. Insert the
+# project root explicitly so `from src.xxx import ...` imports resolve correctly.
+_PROJECT_ROOT = str(Path(__file__).parent.parent.parent)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
 
 from src.config import load_config
 from src.ontology.parser import parse_ontology
