@@ -12,7 +12,7 @@ from src.agent.nodes import (
     synthesize_results,
 )
 from src.llm.base import LLMClient
-from src.database.executor import SQLExecutor
+from src.database.executor import BaseExecutor
 
 
 def _route_after_intent(state: AgentState) -> str:
@@ -65,18 +65,23 @@ def _route_after_analysis_step(state: AgentState) -> str:
     return "synthesize_results"
 
 
-def build_graph(llm: LLMClient, executor: SQLExecutor, ontology_context: str):
+def build_graph(llm: LLMClient, executor: BaseExecutor, ontology_context: str):
+    # Capture dialect once so the generate_sql closure uses the right SQL syntax.
+    # When a future StarRocksExecutor is plugged in, its dialect property will
+    # automatically switch the LLM prompt to MySQL-compatible syntax.
+    db_dialect = executor.dialect
+
     graph = StateGraph(AgentState)
 
     # Existing nodes
     graph.add_node("load_context", lambda state: load_ontology_context(state, ontology_context))
     graph.add_node("classify_intent", lambda state: classify_intent(state, llm))
-    graph.add_node("generate_sql", lambda state: generate_sql(state, llm))
+    graph.add_node("generate_sql", lambda state: generate_sql(state, llm, db_dialect=db_dialect))
     graph.add_node("execute_sql", lambda state: execute_sql_node(state, executor))
     graph.add_node("format_result", lambda state: format_result(state, llm))
     graph.add_node("clarify", lambda state: clarify_question(state, llm))
     graph.add_node("give_up", lambda state: {"response": "I'm unable to understand your request after multiple attempts. Please try rephrasing, or use .tables to see available data."})
-    graph.add_node("retry_sql", lambda state: generate_sql(state, llm))
+    graph.add_node("retry_sql", lambda state: generate_sql(state, llm, db_dialect=db_dialect))
 
     # New ANALYZE nodes
     graph.add_node("plan_analysis", lambda state: plan_analysis(state, llm))

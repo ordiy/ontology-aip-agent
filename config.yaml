@@ -14,8 +14,15 @@ ollama:
   timeout: 120
 
 database:
+  type: sqlite        # sqlite | starrocks — future StarRocksExecutor reads this
   path: ./data/
   mock_rows_per_table: 100
+  starrocks:          # ignored when type=sqlite; populated when StarRocksExecutor is wired in
+    host: localhost
+    port: 9030
+    user: root
+    password: ""
+    database: ontology_agent
 
 permissions:
   read: auto

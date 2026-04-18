@@ -1,11 +1,19 @@
+"""SQL execution with permission control and timeout enforcement.
+
+Architecture: BaseExecutor is an ABC that defines the execute() contract.
+SQLiteExecutor (aliased as SQLExecutor for backward compatibility) is the
+production implementation. Future drivers (e.g. StarRocksExecutor) implement
+the same interface so the agent graph never needs to know which backend is active.
+"""
+
 import sqlite3
 import re
 import threading
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 QUERY_TIMEOUT_SECONDS = 5  # Maximum seconds allowed for a single SQL query
-
 
 
 class PermissionDenied(Exception):
@@ -35,18 +43,74 @@ _OPERATION_PATTERNS = [
 ]
 
 
-class SQLExecutor:
+class BaseExecutor(ABC):
+    """Abstract base class for all SQL executors.
+
+    Defines the interface that the agent graph depends on so concrete
+    backends (SQLite, StarRocks, etc.) are interchangeable without
+    touching any graph or node code.
+
+    Subclasses must implement:
+      - execute(sql, approved) -> SQLResult
+      - dialect property -> str   (e.g. "SQLite", "MySQL")
+
+    The shared classify() helper is provided here because SQL operation
+    classification is backend-agnostic (it's just regex on the SQL text).
+    """
+
+    @property
+    @abstractmethod
+    def dialect(self) -> str:
+        """SQL dialect name injected into LLM SQL-generation prompts.
+
+        Examples: "SQLite", "MySQL (StarRocks-compatible)"
+        """
+        ...
+
+    @abstractmethod
+    def execute(self, sql: str, approved: bool = False) -> SQLResult:
+        """Execute sql and return a SQLResult.
+
+        Args:
+            sql: The SQL statement to run.
+            approved: True if the user has explicitly confirmed a write/delete.
+
+        Returns:
+            SQLResult with rows, affected_rows, needs_approval, or error.
+
+        Raises:
+            PermissionDenied: if the operation is blocked by policy.
+        """
+        ...
+
+    def classify(self, sql: str) -> SQLClassification:
+        """Classify sql by operation type and look up the permission mode.
+
+        Shared across all executors — classification is purely regex-based
+        so it doesn't depend on the backend.
+        """
+        for pattern, operation in _OPERATION_PATTERNS:
+            if re.match(pattern, sql.strip(), re.IGNORECASE):
+                approval_mode = self._permissions.get(operation, "deny")
+                return SQLClassification(operation=operation, approval_mode=approval_mode)
+        return SQLClassification(operation="admin", approval_mode="deny")
+
+
+class SQLiteExecutor(BaseExecutor):
+    """SQLite executor with permission control and per-query timeout.
+
+    Uses ThreadPoolExecutor to enforce QUERY_TIMEOUT_SECONDS — SQLite has
+    no built-in per-query timeout, so we run queries in a thread and cancel
+    if they exceed the limit.
+    """
+
     def __init__(self, db_path: str, permissions: dict[str, str]):
         self._db_path = db_path
         self._permissions = permissions
 
-    def classify(self, sql: str) -> SQLClassification:
-        sql_upper = sql.strip()
-        for pattern, operation in _OPERATION_PATTERNS:
-            if re.match(pattern, sql_upper, re.IGNORECASE):
-                approval_mode = self._permissions.get(operation, "deny")
-                return SQLClassification(operation=operation, approval_mode=approval_mode)
-        return SQLClassification(operation="admin", approval_mode="deny")
+    @property
+    def dialect(self) -> str:
+        return "SQLite"
 
     def execute(self, sql: str, approved: bool = False) -> SQLResult:
         """Execute SQL with permission check and 5-second timeout.
@@ -123,3 +187,8 @@ class SQLExecutor:
             raise
         finally:
             conn.close()
+
+
+# Backward-compatibility alias — all existing code that imports SQLExecutor
+# continues to work unchanged. New code should prefer SQLiteExecutor.
+SQLExecutor = SQLiteExecutor

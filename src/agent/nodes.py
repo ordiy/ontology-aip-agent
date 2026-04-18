@@ -1,7 +1,7 @@
 import re
 from src.agent.state import AgentState
 from src.llm.base import LLMClient
-from src.database.executor import SQLExecutor, PermissionDenied
+from src.database.executor import BaseExecutor, PermissionDenied
 
 
 def load_ontology_context(state: AgentState, context_text: str) -> dict:
@@ -34,15 +34,19 @@ def classify_intent(state: AgentState, llm: LLMClient) -> dict:
     return {"intent": intent}
 
 
-def generate_sql(state: AgentState, llm: LLMClient) -> dict:
+def generate_sql(state: AgentState, llm: LLMClient, db_dialect: str = "SQLite") -> dict:
     """Generate SQL from natural language query using the LLM.
 
     Includes the last 3 conversation turns as context so the LLM can resolve
     references to previous queries (e.g. "show his orders" after asking about a customer).
     If sql_error_message is set, this is a retry — includes previous error for self-correction.
+
+    Args:
+        db_dialect: SQL dialect name (e.g. "SQLite", "MySQL (StarRocks-compatible)").
+                    Injected from the executor so the LLM generates compatible syntax.
     """
     system = (
-        "You are a SQL generator for a SQLite database. "
+        f"You are a SQL generator for a {db_dialect} database. "
         "Given the database schema and a user query, generate ONLY the SQL statement. "
         "Do not include any explanation, markdown, or code fences. "
         "Output ONLY the raw SQL statement."
@@ -105,7 +109,7 @@ def generate_sql(state: AgentState, llm: LLMClient) -> dict:
     return {"generated_sql": sql, "permission_level": permission_level}
 
 
-def execute_sql_node(state: AgentState, executor: SQLExecutor) -> dict:
+def execute_sql_node(state: AgentState, executor: BaseExecutor) -> dict:
     """Execute the generated SQL statement.
 
     On SQL syntax/runtime errors (not permission denials), signals the graph
@@ -297,7 +301,7 @@ def plan_analysis(state: AgentState, llm: LLMClient) -> dict:
     return {"analysis_plan": steps, "sub_results": []}
 
 
-def execute_analysis_step(state: AgentState, llm: LLMClient, executor: SQLExecutor) -> dict:
+def execute_analysis_step(state: AgentState, llm: LLMClient, executor: BaseExecutor) -> dict:
     """Execute the next pending sub-query in the analysis plan.
 
     Picks the first step not yet in sub_results, generates SQL for it,
