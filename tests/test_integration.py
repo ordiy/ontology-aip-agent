@@ -112,3 +112,78 @@ def test_full_write_pipeline_with_approval(sample_rdf_path, tmp_path):
     state["permission_level"] = "confirm"
     result = execute_sql_node(state, executor)
     assert result["affected_rows"] == 10
+
+def test_full_analyze_pipeline(sample_rdf_path, tmp_path):
+    """Test the full ANALYZE pipeline: planner → multi-step execute → synthesize."""
+    from src.ontology.parser import parse_ontology
+    from src.ontology.context import generate_context
+    from src.database.schema import create_tables
+    from src.database.mock_data import generate_mock_data
+    from src.database.executor import SQLExecutor
+    from src.agent.nodes import plan_analysis, execute_analysis_step, synthesize_results
+
+    # Setup
+    schema = parse_ontology(sample_rdf_path)
+    db_path = str(tmp_path / "analyze_test.db")
+    create_tables(db_path, schema)
+    generate_mock_data(db_path, schema, rows_per_table=20)
+
+    executor = SQLExecutor(db_path, {"read": "auto", "write": "confirm", "delete": "confirm", "admin": "deny"})
+    context = generate_context(schema)
+
+    # Step 1: Plan
+    planner_responses = iter([
+        "1. How many customers are there?\n2. What is the total number of orders?"
+    ])
+
+    class PlannerFakeLLM:
+        def chat(self, messages, system_prompt=None, temperature=0.0):
+            return next(planner_responses)
+        def get_model_name(self):
+            return "fake"
+
+    state = {
+        "user_query": "Give me an overview of customers and orders",
+        "ontology_context": context,
+        "analysis_plan": [],
+        "sub_results": [],
+        "conversation_history": [],
+    }
+
+    plan_result = plan_analysis(state, PlannerFakeLLM())
+    assert len(plan_result["analysis_plan"]) == 2
+    state.update(plan_result)
+
+    # Step 2: Execute step 1
+    sql_responses = iter([
+        "SELECT COUNT(*) as total FROM customers",
+        "SELECT COUNT(*) as total FROM orders",
+    ])
+
+    class ExecFakeLLM:
+        def chat(self, messages, system_prompt=None, temperature=0.0):
+            return next(sql_responses)
+        def get_model_name(self):
+            return "fake"
+
+    exec_result_1 = execute_analysis_step(state, ExecFakeLLM(), executor)
+    assert len(exec_result_1["sub_results"]) == 1
+    assert exec_result_1["sub_results"][0]["rows"][0]["total"] == 20
+    state.update(exec_result_1)
+
+    # Step 3: Execute step 2
+    exec_result_2 = execute_analysis_step(state, ExecFakeLLM(), executor)
+    assert len(exec_result_2["sub_results"]) == 2
+    assert exec_result_2["sub_results"][1]["rows"][0]["total"] == 20
+    state.update(exec_result_2)
+
+    # Step 4: Synthesize
+    class SynthFakeLLM:
+        def chat(self, messages, system_prompt=None, temperature=0.0):
+            return "There are 20 customers and 20 orders in the database."
+        def get_model_name(self):
+            return "fake"
+
+    synth_result = synthesize_results(state, SynthFakeLLM())
+    assert "20" in synth_result["response"]
+    assert synth_result.get("result_summary") is not None

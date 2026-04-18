@@ -247,6 +247,7 @@ def clarify_question(state: AgentState, llm: LLMClient) -> dict:
 
 def plan_analysis(state: AgentState, llm: LLMClient) -> dict:
     """Break a complex analytical question into 2-4 focused sub-queries.
+    Limited to 4 sub-queries maximum to bound execution time.
 
     The planner uses the LLM to decompose the question into individual,
     answerable steps. Each step is a plain-language description that will
@@ -283,6 +284,11 @@ def plan_analysis(state: AgentState, llm: LLMClient) -> dict:
             step = re.sub(r"^\d+\.\s*", "", line).strip()
             if step:
                 steps.append(step)
+
+    # Cap at 4 steps to prevent runaway execution on overly complex plans.
+    # LLMs sometimes generate 6-8 steps for broad questions; 4 is enough
+    # for meaningful analysis without making the user wait too long.
+    steps = steps[:4]
 
     # Fallback: if parsing failed, treat whole question as single step
     if not steps:
@@ -384,4 +390,14 @@ def synthesize_results(state: AgentState, llm: LLMClient) -> dict:
         }
     ]
     response = llm.chat(messages, system_prompt=system, temperature=0.0)
-    return {"response": response.strip()}
+
+    # Build a compact result_summary for conversation memory so follow-up
+    # questions can reference what was analyzed (e.g. "which of those grew most?")
+    step_summaries = []
+    for sr in state.get("sub_results", []):
+        if sr.get("rows"):
+            first_row = str(list(sr["rows"][0].values())[:3]) if sr["rows"] else ""
+            step_summaries.append(f"{sr['step'][:60]}: {first_row}")
+    result_summary = "; ".join(step_summaries)[:150] if step_summaries else "Analysis complete."
+
+    return {"response": response.strip(), "result_summary": result_summary}

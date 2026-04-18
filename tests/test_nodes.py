@@ -286,3 +286,160 @@ def test_synthesize_results_calls_llm():
     }
     result = synthesize_results(state, FakeLLM())
     assert "20%" in result["response"] or "higher" in result["response"]
+
+def test_execute_analysis_step_executes_sql_and_appends_result(tmp_path):
+    """execute_analysis_step should generate SQL, execute it, and append to sub_results."""
+    import sqlite3
+    from src.agent.nodes import execute_analysis_step
+    from src.database.executor import SQLExecutor
+
+    # Create a simple test DB
+    db_path = str(tmp_path / "test_analyze.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE orders (id INTEGER PRIMARY KEY, total REAL, status TEXT)")
+    conn.execute("INSERT INTO orders VALUES (1, 100.0, 'completed')")
+    conn.execute("INSERT INTO orders VALUES (2, 200.0, 'completed')")
+    conn.execute("INSERT INTO orders VALUES (3, 50.0, 'pending')")
+    conn.commit()
+    conn.close()
+
+    executor = SQLExecutor(db_path, {"read": "auto", "write": "confirm", "delete": "confirm", "admin": "deny"})
+
+    class FakeLLM:
+        def chat(self, messages, system_prompt=None, temperature=0.0):
+            return "SELECT COUNT(*) as total_orders FROM orders"
+        def get_model_name(self):
+            return "fake"
+
+    state = {
+        "analysis_plan": ["How many orders are there?", "What is the average order total?"],
+        "sub_results": [],  # No steps executed yet
+        "ontology_context": "Table: orders (id, total, status)",
+        "user_query": "Analyze order statistics",
+    }
+
+    result = execute_analysis_step(state, FakeLLM(), executor)
+
+    assert len(result["sub_results"]) == 1
+    step = result["sub_results"][0]
+    assert step["step"] == "How many orders are there?"
+    assert "SELECT" in step["sql"].upper()
+    # Rows should be returned (FakeLLM generated a valid COUNT query)
+    assert step["rows"] is not None
+    assert step["error"] is None
+
+
+def test_execute_analysis_step_continues_after_sql_error(tmp_path):
+    """execute_analysis_step should record the error and NOT abort the pipeline."""
+    import sqlite3
+    from src.agent.nodes import execute_analysis_step
+    from src.database.executor import SQLExecutor
+
+    db_path = str(tmp_path / "test_analyze_err.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute("CREATE TABLE orders (id INTEGER PRIMARY KEY, total REAL)")
+    conn.commit()
+    conn.close()
+
+    executor = SQLExecutor(db_path, {"read": "auto", "write": "confirm", "delete": "confirm", "admin": "deny"})
+
+    class BadSQLFakeLLM:
+        def chat(self, messages, system_prompt=None, temperature=0.0):
+            # Returns SQL referencing a non-existent table
+            return "SELECT * FROM nonexistent_table"
+        def get_model_name(self):
+            return "fake"
+
+    state = {
+        "analysis_plan": ["Query that will fail"],
+        "sub_results": [],
+        "ontology_context": "Table: orders (id, total)",
+        "user_query": "Analyze orders",
+    }
+
+    result = execute_analysis_step(state, BadSQLFakeLLM(), executor)
+
+    # Should append the step with an error, NOT raise an exception
+    assert len(result["sub_results"]) == 1
+    step = result["sub_results"][0]
+    assert step["error"] is not None  # Error was recorded
+    assert "nonexistent" in step["error"].lower() or "no such table" in step["error"].lower()
+
+
+def test_plan_analysis_caps_at_four_steps():
+    """plan_analysis should cap analysis_plan at 4 steps even if LLM returns more."""
+    from src.agent.nodes import plan_analysis
+
+    class VerboseFakeLLM:
+        def chat(self, messages, system_prompt=None, temperature=0.0):
+            # Returns 7 steps
+            return "\n".join(f"{i}. Step {i}" for i in range(1, 8))
+        def get_model_name(self):
+            return "fake"
+
+    state = {
+        "user_query": "Very complex multi-faceted analysis question",
+        "ontology_context": "Table: orders",
+        "conversation_history": [],
+    }
+    result = plan_analysis(state, VerboseFakeLLM())
+    # Must be capped at 4 regardless of how many the LLM returned
+    assert len(result["analysis_plan"]) <= 4
+
+
+def test_synthesize_results_produces_result_summary():
+    """synthesize_results should return result_summary for conversation memory."""
+    from src.agent.nodes import synthesize_results
+
+    class FakeLLM:
+        def chat(self, messages, system_prompt=None, temperature=0.0):
+            return "Revenue increased by 20% this month."
+        def get_model_name(self):
+            return "fake"
+
+    state = {
+        "user_query": "Compare revenue month over month",
+        "ontology_context": "Table: orders",
+        "sub_results": [
+            {"step": "This month revenue", "sql": "SELECT SUM(total) FROM orders WHERE ...", "rows": [{"total": 1200}], "error": None},
+            {"step": "Last month revenue", "sql": "SELECT SUM(total) FROM orders WHERE ...", "rows": [{"total": 1000}], "error": None},
+        ],
+    }
+    result = synthesize_results(state, FakeLLM())
+
+    # Must have both response and result_summary
+    assert result.get("response") == "Revenue increased by 20% this month."
+    assert result.get("result_summary") is not None
+    assert len(result["result_summary"]) <= 150
+
+def test_route_after_analysis_step_continues_when_steps_remain():
+    """_route_after_analysis_step should return 'execute_analysis_step' when plan has more steps."""
+    from src.agent.graph import _route_after_analysis_step
+
+    state = {
+        "analysis_plan": ["step 1", "step 2", "step 3"],
+        "sub_results": [{"step": "step 1", "sql": "SELECT 1", "rows": [], "error": None}],
+    }
+    assert _route_after_analysis_step(state) == "execute_analysis_step"
+
+
+def test_route_after_analysis_step_synthesizes_when_all_done():
+    """_route_after_analysis_step should return 'synthesize_results' when all steps executed."""
+    from src.agent.graph import _route_after_analysis_step
+
+    state = {
+        "analysis_plan": ["step 1", "step 2"],
+        "sub_results": [
+            {"step": "step 1", "sql": "SELECT 1", "rows": [], "error": None},
+            {"step": "step 2", "sql": "SELECT 2", "rows": [], "error": None},
+        ],
+    }
+    assert _route_after_analysis_step(state) == "synthesize_results"
+
+
+def test_route_after_analysis_step_synthesizes_on_empty_plan():
+    """_route_after_analysis_step should handle empty plan gracefully."""
+    from src.agent.graph import _route_after_analysis_step
+
+    state = {"analysis_plan": [], "sub_results": []}
+    assert _route_after_analysis_step(state) == "synthesize_results"
