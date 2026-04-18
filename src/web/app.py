@@ -127,6 +127,15 @@ def _display_results(result: dict):
             if len(rows) > 50:
                 st.caption(f"Showing all {len(rows)} rows")
 
+            # Auto-visualization: detect chart type and render if appropriate
+            if len(rows) > 1:  # Single-row results rarely benefit from charts
+                from src.web.visualizer import detect_chart_type, build_chart
+                chart_type = detect_chart_type(df)
+                if chart_type:
+                    fig = build_chart(df, chart_type, title="")
+                    if fig:
+                        st.plotly_chart(fig, use_container_width=True)
+
     # Affected rows for write operations
     if result.get("affected_rows", 0) > 0:
         st.success(f"✅ Affected rows: {result['affected_rows']}")
