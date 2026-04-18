@@ -182,11 +182,6 @@ def main():
         for cls in schema.classes:
             st.text(f"• {cls.name} ({len(cls.properties)} fields)")
 
-        st.divider()
-        if st.button("🗑️ Clear Chat"):
-            st.session_state.chat_history = []
-            st.rerun()
-
     # ── Main area ────────────────────────────
     st.title(f"{schema.domain} — Data Agent")
 
@@ -194,9 +189,29 @@ def main():
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
+    # Initialize LLM context history in session state
+    if "_llm_context_history" not in st.session_state:
+        st.session_state._llm_context_history = []
+
+    # Handle domain switch
+    if st.session_state.get("_current_domain") != selected_domain:
+        st.session_state.chat_history = []
+        st.session_state._llm_context_history = []
+        st.session_state.pending_write = None
+        st.session_state["_current_domain"] = selected_domain
+
     # Track pending write approval
     if "pending_write" not in st.session_state:
         st.session_state.pending_write = None
+
+    # Clear chat from sidebar button
+    with st.sidebar:
+        st.divider()
+        if st.button("🗑️ Clear Chat"):
+            st.session_state.chat_history = []
+            st.session_state._llm_context_history = []  # clear LLM context too
+            st.session_state.pending_write = None
+            st.rerun()
 
     # Display chat history
     for entry in st.session_state.chat_history:
@@ -253,6 +268,7 @@ def main():
             "error": None,
             "sql_retry_count": 0,
             "sql_error_message": None,
+            "conversation_history": st.session_state._llm_context_history,
         }
 
         with st.spinner("Thinking..."):
@@ -267,6 +283,16 @@ def main():
         # Normal result — add to history and display
         with st.chat_message("assistant"):
             _display_results(result)
+
+        # Append compact turn to LLM context history
+        if result.get("generated_sql") and result.get("response"):
+            st.session_state._llm_context_history.append({
+                "query": user_input,
+                "sql": result.get("generated_sql", ""),
+                "result_summary": result.get("result_summary", result.get("response", "")[:150]),
+            })
+            # Keep last 10 turns only
+            st.session_state._llm_context_history = st.session_state._llm_context_history[-10:]
 
         st.session_state.chat_history.append({
             "query": user_input,

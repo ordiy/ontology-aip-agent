@@ -170,3 +170,59 @@ def test_generate_sql_includes_error_context_on_retry():
     # The messages sent to LLM should contain error context
     all_content = " ".join(m.get("content", "") for m in captured_messages)
     assert "custmers" in all_content or "no such table" in all_content
+
+def test_generate_sql_includes_conversation_history():
+    """generate_sql should include prior conversation turns in LLM messages for context."""
+    captured_messages = []
+
+    class CapturingFakeLLM:
+        def chat(self, messages, system_prompt=None, temperature=0.0):
+            captured_messages.extend(messages)
+            return "SELECT * FROM accounts WHERE id = 42"
+        def get_model_name(self):
+            return "fake"
+
+    state = {
+        "user_query": "show his transactions",
+        "ontology_context": "Table: accounts\nTable: transactions",
+        "intent": "READ",
+        "generated_sql": "",
+        "sql_error_message": None,
+        "sql_retry_count": 0,
+        "conversation_history": [
+            {
+                "query": "who has the highest balance?",
+                "sql": "SELECT * FROM accounts ORDER BY balance DESC LIMIT 1",
+                "result_summary": "1 rows. Sample: id=42, name=Alice, balance=99999",
+            }
+        ],
+    }
+    result = generate_sql(state, CapturingFakeLLM())
+
+    # The prior turn should appear in the messages sent to the LLM
+    all_content = " ".join(m.get("content", "") for m in captured_messages)
+    assert "who has the highest balance" in all_content or "Alice" in all_content or "id=42" in all_content
+    assert "SELECT" in result["generated_sql"]
+
+
+def test_generate_sql_empty_history_works_normally():
+    """generate_sql with empty conversation_history should work as before."""
+    from src.agent.nodes import generate_sql
+
+    class FakeLLM:
+        def chat(self, messages, system_prompt=None, temperature=0.0):
+            return "SELECT COUNT(*) FROM customers"
+        def get_model_name(self):
+            return "fake"
+
+    state = {
+        "user_query": "how many customers?",
+        "ontology_context": "Table: customers",
+        "intent": "READ",
+        "generated_sql": "",
+        "sql_error_message": None,
+        "sql_retry_count": 0,
+        "conversation_history": [],
+    }
+    result = generate_sql(state, FakeLLM())
+    assert "SELECT" in result["generated_sql"]

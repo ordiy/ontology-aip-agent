@@ -213,6 +213,7 @@ def main():
 
     # Initialize before the conversation loop
     conversation_history = []  # List of {"query": str, "intent": str, "sql": str, "response": str}
+    _llm_context_history = []  # Compact history for LLM context
 
     # Conversation loop
     while True:
@@ -243,6 +244,7 @@ def main():
                     continue
                 elif "clear_history" in result:
                     conversation_history.clear()
+                    _llm_context_history.clear()
                     console.print("[dim]History cleared.[/dim]")
                     continue
             elif result:
@@ -264,6 +266,7 @@ def main():
             "error": None,
             "sql_retry_count": 0,
             "sql_error_message": None,
+            "conversation_history": _llm_context_history,
         }
 
         result = agent.invoke(initial_state)
@@ -313,6 +316,16 @@ def main():
             "sql": result.get("generated_sql", ""),
             "response": result.get("response", ""),
         })
+
+        # Append this turn to LLM context history
+        if result.get("generated_sql") and result.get("response"):
+            _llm_context_history.append({
+                "query": user_input,
+                "sql": result.get("generated_sql", ""),
+                "result_summary": result.get("result_summary", result.get("response", "")[:150]),
+            })
+            # Keep only last 10 turns to avoid growing indefinitely
+            _llm_context_history = _llm_context_history[-10:]
 
 if __name__ == "__main__":
     main()

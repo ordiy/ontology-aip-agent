@@ -30,8 +30,9 @@ def classify_intent(state: AgentState, llm: LLMClient) -> dict:
 def generate_sql(state: AgentState, llm: LLMClient) -> dict:
     """Generate SQL from natural language query using the LLM.
 
-    If sql_error_message is set in state, this is a retry — include the
-    previous SQL and error in the prompt so LLM can fix it.
+    Includes the last 3 conversation turns as context so the LLM can resolve
+    references to previous queries (e.g. "show his orders" after asking about a customer).
+    If sql_error_message is set, this is a retry — includes previous error for self-correction.
     """
     system = (
         "You are a SQL generator for a SQLite database. "
@@ -39,30 +40,43 @@ def generate_sql(state: AgentState, llm: LLMClient) -> dict:
         "Do not include any explanation, markdown, or code fences. "
         "Output ONLY the raw SQL statement."
     )
+
+    messages = []
+
+    # Inject the last 3 conversation turns as context before the current query.
+    # This lets the LLM resolve pronoun references (e.g. "his orders" → refers to
+    # the customer found in the previous turn).
+    # We truncate to 3 turns to maintain context window efficiency.
+    history = state.get("conversation_history", [])
+    for turn in history[-3:]:
+        messages.append({
+            "role": "user",
+            "content": f"Previous query: {turn['query']}\nSQL used: {turn['sql']}\nResult summary: {turn['result_summary']}"
+        })
+        messages.append({
+            "role": "model",
+            "content": "Understood."
+        })
+
+    # Current query
     user_content = (
         f"Database schema:\n{state['ontology_context']}\n\n"
         f"User query: {state['user_query']}\n"
         f"Intent: {state['intent']}"
     )
 
-    # Check if this is a retry with error feedback
+    # If retrying after SQL error, append the error context
     sql_error = state.get("sql_error_message")
     if sql_error:
-        # Include previous failed SQL and error message to guide the fix
-        error_context = (
+        user_content += (
             f"\n\nPREVIOUS ATTEMPT FAILED:\n"
             f"SQL: {state.get('generated_sql', '')}\n"
             f"Error: {sql_error}\n"
             f"Please fix the SQL to avoid this error."
         )
-        user_content += error_context  # append to existing user message
 
-    messages = [
-        {
-            "role": "user",
-            "content": user_content,
-        },
-    ]
+    messages.append({"role": "user", "content": user_content})
+
     response = llm.chat(messages, system_prompt=system, temperature=0.0)
 
     # Clean up: remove markdown code fences if present
@@ -138,10 +152,19 @@ def execute_sql_node(state: AgentState, executor: SQLExecutor) -> dict:
 
 
 def format_result(state: AgentState, llm: LLMClient) -> dict:
+    """Format query result as natural language and produce a compact history summary.
+
+    The result_summary is a short string (≤150 chars) stored in conversation_history
+    so future turns can reference what was found without bloating the LLM context.
+    """
     error_msg = state.get("error")
     
     if error_msg and "timed out" not in error_msg.lower():
-        return {"response": f"Error: {error_msg}"}
+        # Short-circuit for most errors
+        return {
+            "response": f"Error: {error_msg}",
+            "result_summary": f"Error: {error_msg[:100]}"
+        }
 
     system = (
         "You are a helpful data assistant. Summarize the query result in a clear, "
@@ -168,7 +191,32 @@ def format_result(state: AgentState, llm: LLMClient) -> dict:
         },
     ]
     response = llm.chat(messages, system_prompt=system, temperature=0.0)
-    return {"response": response.strip()}
+
+    # Produce a compact summary for conversation history.
+    # Keep it short (capped at 150 chars): just entity names and key numbers, not full rows.
+    # This avoids bloating the LLM context in future turns.
+    if state.get("query_result"):
+        rows = state["query_result"]
+        if rows:
+            # Take first 3 rows, show key-value pairs
+            sample = "; ".join(
+                ", ".join(f"{k}={v}" for k, v in list(row.items())[:3])
+                for row in rows[:3]
+            )
+            result_summary = f"{len(rows)} rows. Sample: {sample}"[:150]
+        else:
+            result_summary = "No results found."
+    elif state.get("affected_rows", 0) > 0:
+        result_summary = f"{state['affected_rows']} rows affected."
+    elif state.get("error"):
+        result_summary = f"Error: {state['error'][:100]}"
+    else:
+        result_summary = "No data."
+
+    return {
+        "response": response.strip(),
+        "result_summary": result_summary
+    }
 
 
 def clarify_question(state: AgentState, llm: LLMClient) -> dict:
