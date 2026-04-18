@@ -4,8 +4,19 @@ from src.llm.base import LLMClient
 
 
 class VertexGeminiClient:
-    def __init__(self, project: str, location: str, model_name: str):
-        aiplatform.init(project=project, location=location)
+    def __init__(self, project: str, location: str, model_name: str, credentials_path: str = ""):
+        # Pass credentials explicitly when provided so the client works in
+        # environments where GOOGLE_APPLICATION_CREDENTIALS is not set in the
+        # process environment (e.g. Streamlit running as a background process).
+        if credentials_path:
+            from google.oauth2 import service_account
+            credentials = service_account.Credentials.from_service_account_file(
+                credentials_path,
+                scopes=["https://www.googleapis.com/auth/cloud-platform"],
+            )
+            aiplatform.init(project=project, location=location, credentials=credentials)
+        else:
+            aiplatform.init(project=project, location=location)
         self._model_name = model_name
         self._model = GenerativeModel(model_name)
 

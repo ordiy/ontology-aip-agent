@@ -89,6 +89,7 @@ def _load_domain(domain_name: str, rdf_path: str, config: dict):
             project=config["vertex"]["project"],
             location=config["vertex"]["location"],
             model_name=config["llm"]["model"],
+            credentials_path=config["vertex"].get("credentials", ""),
         )
 
     executor = SQLExecutor(db_path, config["permissions"])

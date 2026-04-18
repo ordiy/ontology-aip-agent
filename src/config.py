@@ -13,6 +13,7 @@ DEFAULTS = {
     "vertex": {
         "project": "",
         "location": "global",
+        "credentials": "",  # Path to service account JSON; empty = use ADC
     },
     "ollama": {
         "host": "http://localhost:11434",
@@ -36,6 +37,8 @@ ENV_OVERRIDES = {
     "LLM_MODEL": ("llm", "model"),
     "GOOGLE_CLOUD_PROJECT": ("vertex", "project"),
     "GOOGLE_CLOUD_LOCATION": ("vertex", "location"),
+    # Allow credentials path override via env var (useful for Streamlit / Docker)
+    "GOOGLE_APPLICATION_CREDENTIALS": ("vertex", "credentials"),
 }
 
 

@@ -6,6 +6,7 @@ llm:
 vertex:
   project: mydevproject20260304
   location: global
+  credentials: /home/openclaw/mydevproject20260304-bfafddb22b0d.json
 
 ollama:
   host: http://localhost:11434

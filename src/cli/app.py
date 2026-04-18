@@ -202,6 +202,7 @@ def main():
             project=config["vertex"]["project"],
             location=config["vertex"]["location"],
             model_name=config["llm"]["model"],
+            credentials_path=config["vertex"].get("credentials", ""),
         )
 
     schema, db_path, class_to_table, ontology_context, agent = _initialize_domain(
