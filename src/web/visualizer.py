@@ -19,7 +19,9 @@ def detect_chart_type(df: pd.DataFrame) -> Optional[str]:
     """Detect the most suitable chart type for the dataframe.
 
     Examines column types and cardinality to choose between:
-    'bar', 'line', 'pie', or None (no chart suitable).
+    'bar', 'line', 'pie', 'area', 'stacked_bar', or None (no chart suitable).
+    'area': date/time column present AND (column name contains 'cumul'/'running'/'total' OR values are monotonically non-decreasing)
+    'stacked_bar': exactly 2 text/object columns + exactly 1 numeric column
 
     Args:
         df: Query result as a DataFrame
@@ -39,8 +41,24 @@ def detect_chart_type(df: pd.DataFrame) -> Optional[str]:
     if not numeric_cols:
         return None  # Nothing to plot without numeric data
 
-    # Time series: date-like column + numeric → line chart
+    # Stacked bar: exactly 2 category columns + 1 numeric → stacked bar
+    # Shows how a metric breaks down across two dimensions simultaneously.
+    if len(text_cols) == 2 and len(numeric_cols) == 1:
+        return "stacked_bar"
+
+    # Time series: date-like column + numeric → area or line chart.
+    # Area charts suit cumulative/running totals; line suits point-in-time values.
     if date_cols and numeric_cols:
+        value_col = numeric_cols[0]
+        col_name_lower = value_col.lower()
+        # Use area if column name suggests accumulation
+        if any(kw in col_name_lower for kw in ["cumul", "running", "total", "sum"]):
+            return "area"
+        # Use area if the series is monotonically non-decreasing (cumulative pattern)
+        if len(df) > 2:
+            series = df[value_col].dropna()
+            if len(series) > 2 and (series.diff().dropna() >= 0).all():
+                return "area"
         return "line"
 
     # Category + single numeric: bar chart
@@ -106,5 +124,21 @@ def build_chart(df: pd.DataFrame, chart_type: str, title: str = ""):
         if text_cols:
             return px.bar(df.head(20), x=text_cols[0], y=numeric_cols, title=title or "Comparison")
         return px.bar(df.head(20), y=numeric_cols, title=title or "Comparison")
+
+    if chart_type == "area" and date_cols:
+        x_col = date_cols[0]
+        # Sort ascending so the area fills correctly left-to-right
+        df_sorted = df.sort_values(x_col)
+        return px.area(df_sorted, x=x_col, y=value_col, title=title or f"{value_col} over time (cumulative)")
+
+    if chart_type == "stacked_bar" and len(text_cols) >= 2:
+        # text_cols[0] = x-axis category, text_cols[1] = stack color dimension
+        x_col = text_cols[0]
+        color_col = text_cols[1]
+        # Limit rows to keep chart readable — too many groups become unreadable
+        df_plot = df.head(50)
+        return px.bar(df_plot, x=x_col, y=value_col, color=color_col,
+                      barmode="stack",
+                      title=title or f"{value_col} by {x_col} stacked by {color_col}")
 
     return None

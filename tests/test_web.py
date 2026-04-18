@@ -111,3 +111,83 @@ def test_build_chart_returns_figure_for_bar():
     })
     fig = build_chart(df, "bar", title="Test")
     assert fig is not None
+
+
+def test_detect_chart_type_stacked_bar_for_two_text_one_numeric():
+    """detect_chart_type returns 'stacked_bar' for 2 text columns + 1 numeric."""
+    from src.web.visualizer import detect_chart_type
+    import pandas as pd
+
+    df = pd.DataFrame({
+        "region": ["North", "North", "South", "South"],
+        "category": ["A", "B", "A", "B"],
+        "sales": [100, 200, 150, 250],
+    })
+    result = detect_chart_type(df)
+    assert result == "stacked_bar"
+
+
+def test_detect_chart_type_area_for_cumulative_column_name():
+    """detect_chart_type returns 'area' when numeric column name implies accumulation."""
+    from src.web.visualizer import detect_chart_type
+    import pandas as pd
+
+    df = pd.DataFrame({
+        "order_date": ["2025-01-01", "2025-01-02", "2025-01-03"],
+        "cumulative_revenue": [100, 300, 600],
+    })
+    result = detect_chart_type(df)
+    assert result == "area"
+
+
+def test_detect_chart_type_area_for_monotonic_series():
+    """detect_chart_type returns 'area' for monotonically increasing time series."""
+    from src.web.visualizer import detect_chart_type
+    import pandas as pd
+
+    df = pd.DataFrame({
+        "order_date": ["2025-01-01", "2025-01-02", "2025-01-03", "2025-01-04"],
+        "count": [10, 15, 20, 30],   # monotonically increasing
+    })
+    result = detect_chart_type(df)
+    assert result == "area"
+
+
+def test_detect_chart_type_line_for_non_monotonic_series():
+    """detect_chart_type returns 'line' for fluctuating (non-cumulative) time series."""
+    from src.web.visualizer import detect_chart_type
+    import pandas as pd
+
+    df = pd.DataFrame({
+        "order_date": ["2025-01-01", "2025-01-02", "2025-01-03", "2025-01-04"],
+        "daily_revenue": [200, 150, 300, 100],   # up and down
+    })
+    result = detect_chart_type(df)
+    assert result == "line"
+
+
+def test_build_chart_area_returns_figure():
+    """build_chart returns a plotly figure for area chart type."""
+    from src.web.visualizer import build_chart
+    import pandas as pd
+
+    df = pd.DataFrame({
+        "order_date": ["2025-01-01", "2025-01-02", "2025-01-03"],
+        "cumulative_revenue": [100, 300, 600],
+    })
+    fig = build_chart(df, "area", title="Test")
+    assert fig is not None
+
+
+def test_build_chart_stacked_bar_returns_figure():
+    """build_chart returns a plotly figure for stacked_bar chart type."""
+    from src.web.visualizer import build_chart
+    import pandas as pd
+
+    df = pd.DataFrame({
+        "region": ["North", "North", "South", "South"],
+        "category": ["A", "B", "A", "B"],
+        "sales": [100, 200, 150, 250],
+    })
+    fig = build_chart(df, "stacked_bar", title="Test")
+    assert fig is not None
