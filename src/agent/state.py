@@ -16,5 +16,7 @@ class AgentState(TypedDict, total=False):
     error: str | None
     sql_retry_count: int     # Tracks how many SQL retries have happened (max 1)
     sql_error_message: str | None # Error message from failed SQL execution
+    analysis_plan: list[str]       # List of sub-query descriptions from planner
+    sub_results: list[dict]        # Results from each sub-query execution
     conversation_history: list[dict]  # Past turns: [{"query": str, "sql": str, "result_summary": str}, ...]
     result_summary: str      # Compact summary of the result for conversation history

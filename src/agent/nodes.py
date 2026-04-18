@@ -9,20 +9,27 @@ def load_ontology_context(state: AgentState, context_text: str) -> dict:
 
 
 def classify_intent(state: AgentState, llm: LLMClient) -> dict:
+    """Classify user intent as READ, WRITE, ANALYZE, or UNCLEAR.
+
+    ANALYZE is for complex questions requiring multiple SQL queries,
+    such as comparisons, trend analysis, or questions with 'and', 'compare',
+    'vs', 'difference between', 'breakdown'.
+    """
     system = (
         "You are an intent classifier for a data agent. "
-        "Given a user query and database schema, classify the intent as exactly one of: READ, WRITE, UNCLEAR.\n"
-        "READ: queries that retrieve/analyze data (SELECT).\n"
+        "Given a user query and database schema, classify the intent as exactly one of: READ, WRITE, ANALYZE, UNCLEAR.\n"
+        "READ: simple queries that retrieve data with a single SQL (SELECT).\n"
         "WRITE: queries that modify data (INSERT, UPDATE, DELETE).\n"
+        "ANALYZE: complex questions needing multiple queries — comparisons, trends, breakdowns, 'vs', 'compare', 'difference'.\n"
         "UNCLEAR: query is ambiguous or unrelated to the database.\n"
-        "Respond with ONLY the single word: READ, WRITE, or UNCLEAR."
+        "Respond with ONLY the single word: READ, WRITE, ANALYZE, or UNCLEAR."
     )
     messages = [
         {"role": "user", "content": f"Schema:\n{state['ontology_context']}\n\nUser query: {state['user_query']}"},
     ]
     response = llm.chat(messages, system_prompt=system, temperature=0.0)
     intent = response.strip().upper()
-    if intent not in ("READ", "WRITE", "UNCLEAR"):
+    if intent not in ("READ", "WRITE", "ANALYZE", "UNCLEAR"):
         intent = "UNCLEAR"
     return {"intent": intent}
 
@@ -237,3 +244,144 @@ def clarify_question(state: AgentState, llm: LLMClient) -> dict:
     response = llm.chat(messages, system_prompt=system, temperature=0.0)
     count = state.get("clarify_count", 0) + 1
     return {"response": response.strip(), "clarify_count": count}
+
+def plan_analysis(state: AgentState, llm: LLMClient) -> dict:
+    """Break a complex analytical question into 2-4 focused sub-queries.
+
+    The planner uses the LLM to decompose the question into individual,
+    answerable steps. Each step is a plain-language description that will
+    be turned into SQL by the execute_analysis_step node.
+
+    Returns a list of step descriptions in analysis_plan, and resets sub_results.
+    """
+    system = (
+        "You are a data analysis planner. Break the user's complex question into "
+        "2-4 focused sub-questions that can each be answered with a single SQL query.\n"
+        "Output ONLY a numbered list, one sub-question per line, like:\n"
+        "1. What is the total revenue this month?\n"
+        "2. What was the total revenue last month?\n"
+        "3. Which products had the highest sales increase?\n"
+        "No explanation, no preamble — just the numbered list."
+    )
+    messages = [
+        {
+            "role": "user",
+            "content": (
+                f"Database schema:\n{state['ontology_context']}\n\n"
+                f"Complex question: {state['user_query']}"
+            ),
+        }
+    ]
+    response = llm.chat(messages, system_prompt=system, temperature=0.0)
+
+    # Parse numbered list into individual steps
+    steps = []
+    for line in response.strip().splitlines():
+        line = line.strip()
+        if line and line[0].isdigit():
+            # Strip leading "1. " numbering
+            step = re.sub(r"^\d+\.\s*", "", line).strip()
+            if step:
+                steps.append(step)
+
+    # Fallback: if parsing failed, treat whole question as single step
+    if not steps:
+        steps = [state["user_query"]]
+
+    return {"analysis_plan": steps, "sub_results": []}
+
+
+def execute_analysis_step(state: AgentState, llm: LLMClient, executor: SQLExecutor) -> dict:
+    """Execute the next pending sub-query in the analysis plan.
+
+    Picks the first step not yet in sub_results, generates SQL for it,
+    executes it, and appends the result to sub_results.
+
+    Returns updated sub_results. When all steps are done, the graph routes
+    to synthesize_results.
+    
+    Analysis sub-steps are always READ (analysis doesn't write data).
+    """
+    plan = state.get("analysis_plan", [])
+    sub_results = list(state.get("sub_results", []))
+
+    # Find next unexecuted step
+    step_index = len(sub_results)
+    if step_index >= len(plan):
+        # All steps done — should not happen if graph routing is correct
+        return {"sub_results": sub_results}
+
+    step_query = plan[step_index]
+
+    # Generate SQL for this sub-step
+    sql_system = (
+        "You are a SQL generator for SQLite. Given the schema and a specific sub-question, "
+        "generate ONLY the SQL statement. No explanation, no markdown fences."
+    )
+    sql_messages = [
+        {
+            "role": "user",
+            "content": (
+                f"Database schema:\n{state['ontology_context']}\n\n"
+                f"Sub-question: {step_query}"
+            ),
+        }
+    ]
+    sql_response = llm.chat(sql_messages, system_prompt=sql_system, temperature=0.0)
+
+    # Clean up SQL
+    sql = sql_response.strip()
+    sql = re.sub(r"^```sql\s*", "", sql)
+    sql = re.sub(r"^```\s*", "", sql)
+    sql = re.sub(r"\s*```$", "", sql)
+    sql = sql.strip()
+
+    # Execute (sub-steps are always READ — analysis doesn't write data)
+    exec_result = executor.execute(sql, approved=False)
+
+    sub_results.append({
+        "step": step_query,
+        "sql": sql,
+        "rows": exec_result.rows or [],
+        "error": exec_result.error,
+    })
+
+    return {"sub_results": sub_results}
+
+
+def synthesize_results(state: AgentState, llm: LLMClient) -> dict:
+    """Synthesize all sub-query results into a coherent final answer.
+
+    Collects all sub-results and asks the LLM to produce a unified,
+    insightful response that directly answers the original complex question.
+    """
+    system = (
+        "You are a data analyst. You have executed multiple queries to answer a complex question. "
+        "Synthesize the results into a clear, insightful answer. "
+        "Be specific with numbers. Point out key findings, comparisons, or trends."
+    )
+
+    # Format sub-results for the LLM
+    sub_results_text = ""
+    for i, sr in enumerate(state.get("sub_results", []), 1):
+        sub_results_text += f"\nStep {i}: {sr['step']}\n"
+        sub_results_text += f"SQL: {sr['sql']}\n"
+        if sr.get("error"):
+            sub_results_text += f"Error: {sr['error']}\n"
+        elif sr.get("rows"):
+            # Show up to 5 rows per sub-result to avoid exceeding the context window
+            sub_results_text += f"Results ({len(sr['rows'])} rows): {str(sr['rows'][:5])}\n"
+        else:
+            sub_results_text += "No results.\n"
+
+    messages = [
+        {
+            "role": "user",
+            "content": (
+                f"Original question: {state['user_query']}\n\n"
+                f"Query results:\n{sub_results_text}"
+            ),
+        }
+    ]
+    response = llm.chat(messages, system_prompt=system, temperature=0.0)
+    return {"response": response.strip()}

@@ -112,6 +112,17 @@ def _display_results(result: dict):
         st.markdown("**Intent:** :blue[READ]")
     elif intent == "WRITE":
         st.markdown("**Intent:** :orange[WRITE]")
+    elif intent == "ANALYZE":
+        st.markdown("**Intent:** :violet[ANALYZE]")
+
+    # Show analysis sub-steps for ANALYZE intent
+    if result.get("intent") == "ANALYZE" and result.get("sub_results"):
+        with st.expander(f"Analysis steps ({len(result['sub_results'])} queries)", expanded=False):
+            for i, sr in enumerate(result["sub_results"], 1):
+                st.caption(f"Step {i}: {sr['step']}")
+                st.code(sr["sql"], language="sql")
+                if sr.get("rows"):
+                    st.dataframe(pd.DataFrame(sr["rows"]), use_container_width=True)
 
     # Generated SQL
     if result.get("generated_sql"):
@@ -277,6 +288,8 @@ def main():
             "error": None,
             "sql_retry_count": 0,
             "sql_error_message": None,
+            "analysis_plan": [],
+            "sub_results": [],
             "conversation_history": st.session_state._llm_context_history,
         }
 

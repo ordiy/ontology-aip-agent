@@ -266,6 +266,8 @@ def main():
             "error": None,
             "sql_retry_count": 0,
             "sql_error_message": None,
+            "analysis_plan": [],
+            "sub_results": [],
             "conversation_history": _llm_context_history,
         }
 
@@ -274,6 +276,14 @@ def main():
         # Show intent
         if result.get("intent"):
             console.print(f"[dim]Intent: {result['intent']}[/dim]")
+
+        # Show analysis steps for ANALYZE intent
+        if result.get("intent") == "ANALYZE" and result.get("sub_results"):
+            for i, sr in enumerate(result["sub_results"], 1):
+                console.print(f"\n[dim]Step {i}: {sr['step']}[/dim]")
+                console.print(Syntax(sr["sql"], "sql", theme="monokai"))
+                if sr.get("rows"):
+                    _display_table(sr["rows"])
 
         # Show SQL
         if result.get("generated_sql"):

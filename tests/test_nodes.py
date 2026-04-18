@@ -226,3 +226,63 @@ def test_generate_sql_empty_history_works_normally():
     }
     result = generate_sql(state, FakeLLM())
     assert "SELECT" in result["generated_sql"]
+
+def test_plan_analysis_parses_numbered_list():
+    """plan_analysis should parse LLM numbered list into analysis_plan steps."""
+    from src.agent.nodes import plan_analysis
+
+    class FakeLLM:
+        def chat(self, messages, system_prompt=None, temperature=0.0):
+            return "1. What is total revenue this month?\n2. What was revenue last month?\n3. Which products grew most?"
+        def get_model_name(self):
+            return "fake"
+
+    state = {
+        "user_query": "Compare this month vs last month revenue",
+        "ontology_context": "Table: orders",
+        "conversation_history": [],
+    }
+    result = plan_analysis(state, FakeLLM())
+    assert len(result["analysis_plan"]) == 3
+    assert "this month" in result["analysis_plan"][0].lower()
+    assert result["sub_results"] == []
+
+
+def test_classify_intent_analyze():
+    """classify_intent should return ANALYZE for multi-step questions."""
+    from src.agent.nodes import classify_intent
+
+    class FakeLLM:
+        def chat(self, messages, system_prompt=None, temperature=0.0):
+            return "ANALYZE"
+        def get_model_name(self):
+            return "fake"
+
+    state = {
+        "user_query": "Compare this month vs last month revenue",
+        "ontology_context": "Table: orders",
+    }
+    result = classify_intent(state, FakeLLM())
+    assert result["intent"] == "ANALYZE"
+
+
+def test_synthesize_results_calls_llm():
+    """synthesize_results should format sub_results and return response."""
+    from src.agent.nodes import synthesize_results
+
+    class FakeLLM:
+        def chat(self, messages, system_prompt=None, temperature=0.0):
+            return "This month revenue is higher by 20%."
+        def get_model_name(self):
+            return "fake"
+
+    state = {
+        "user_query": "Compare months",
+        "ontology_context": "Table: orders",
+        "sub_results": [
+            {"step": "This month", "sql": "SELECT SUM(total) FROM orders WHERE ...", "rows": [{"total": 1200}], "error": None},
+            {"step": "Last month", "sql": "SELECT SUM(total) FROM orders WHERE ...", "rows": [{"total": 1000}], "error": None},
+        ],
+    }
+    result = synthesize_results(state, FakeLLM())
+    assert "20%" in result["response"] or "higher" in result["response"]
