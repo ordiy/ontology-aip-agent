@@ -186,53 +186,105 @@ This is essentially the convergence of **data virtualization + knowledge graph +
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                  User Interface                               │
-│         CLI (rich)              Web UI (Streamlit)            │
-└──────────────────┬───────────────────────┬───────────────────┘
-                   │                       │
-                   └──────────┬────────────┘
-                              ▼
-┌──────────────────────────────────────────────────────────────┐
-│                    LangGraph Agent                            │
-│                                                              │
-│  load_context → classify_intent                              │
-│                    ├─[READ/WRITE]→ generate_sql              │
-│                    │                  → execute_sql           │
-│                    │                  → format_result         │
-│                    ├─[ANALYZE] → plan_analysis               │
-│                    │              → execute_analysis_step(×N) │
-│                    │              → synthesize_results        │
-│                    └─[UNCLEAR] → clarify (max 2) / give_up   │
-└──────┬────────────────────┬────────────────────┬────────────┘
-       │                    │                    │
-       ▼                    ▼                    ▼
-┌─────────────┐   ┌──────────────────────────────────────┐  ┌──────────────────┐
-│  Ontology   │   │   LLM Client (pluggable)              │  │  SQL Executor    │
-│  Store      │   │  ┌──────────┐  ┌──────────────────┐  │  │  (SQLite)        │
-│  (RDF/OWL)  │   │  │ Vertex AI│  │ OpenAI-compatible│  │  │  + Permission    │
-└─────────────┘   │  │  Gemini  │  │ OpenAI/OpenRouter│  │  └──────────────────┘
-                  │  └──────────┘  └──────────────────┘  │
-                  │  ┌──────────┐                         │
-                  │  │  Ollama  │  (local, no API key)    │
-                  │  └──────────┘                         │
-                  └──────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                      User Interface                               │
+│           CLI (rich)              Web UI (Streamlit)              │
+└────────────────────┬──────────────────────┬──────────────────────┘
+                     │                      │
+                     └──────────┬───────────┘
+                                ▼
+                  ┌─────────────────────────┐
+                  │  ObservabilityClient    │  ← Langfuse tracing
+                  │  (langfuse, optional)   │    (disabled by default)
+                  └────────────┬────────────┘
+                               ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                      LangGraph Agent                              │
+│                                                                  │
+│  load_context → classify_intent                                  │
+│                    ├─[READ/WRITE] → generate_sql                 │
+│                    │                 → execute_sql → format       │
+│                    ├─[ANALYZE]   → plan_analysis                 │
+│                    │                 → execute_step(×N) → synth  │
+│                    ├─[DECIDE]    → extract_overrides             │
+│                    │                 → generate_sql (read)        │
+│                    │                 → apply_decision             │
+│                    │                 → present_decision           │
+│                    │                 → plan_operation             │
+│                    │                 → execute_op_step(×N)        │
+│                    │                 → rollback (on error)        │
+│                    ├─[OPERATE]   → extract_overrides             │
+│                    │                 → plan_operation             │
+│                    │                 → execute_op_step(×N)        │
+│                    │                 → rollback (on error)        │
+│                    └─[UNCLEAR]   → clarify (max 2) / give_up     │
+└──────┬──────────────────────┬──────────────────────┬────────────┘
+       │                      │                      │
+       ▼                      ▼                      ▼
+┌─────────────────┐  ┌──────────────────────────────────────┐  ┌──────────────────┐
+│ OntologyProvider│  │   LLM Client (pluggable)              │  │  QueryExecutor   │
+│ (RDF/OWL +      │  │  ┌──────────┐  ┌──────────────────┐  │  │  (pluggable)     │
+│  physical map)  │  │  │ Vertex AI│  │ OpenAI-compatible│  │  │  SQLiteExecutor  │
+│                 │  │  │  Gemini  │  │ OpenAI/OpenRouter│  │  │  StarRocks-ready │
+│ RDFOntologyPro- │  │  └──────────┘  └──────────────────┘  │  └──────────────────┘
+│ vider reads     │  │  ┌──────────┐                         │
+│ aip:physicalTable  │  │  Ollama  │  (local, no API key)    │
+│ → renders phys- │  │  └──────────┘                         │
+│   ical SQL refs │  └──────────────────────────────────────┘
+└─────────────────┘
+```
+
+### Three-Layer Separation
+
+LangGraph nodes are fully decoupled from storage and ontology implementation details:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  LangGraph Nodes  (never import storage or RDF libs)    │
+│    classify_intent / generate_sql / execute_sql / ...   │
+└──────────────┬──────────────────┬────────────────────────┘
+               │                  │
+    OntologyProvider         QueryExecutor (BaseExecutor)
+    (semantic + physical)    (execution backend)
+               │                  │
+   ┌───────────┴──────┐  ┌────────┴────────────────────┐
+   │ RDFOntologyPro-  │  │ SQLiteExecutor (dev/test)    │
+   │ vider            │  │ StarRocksExecutor (Iceberg)  │
+   │ reads aip:       │  │ TrinoExecutor / BigQuery...  │
+   │ physicalTable    │  └─────────────────────────────┘
+   │ → LLM sees       │
+   │ iceberg_catalog  │
+   │ .retail.orders   │
+   └──────────────────┘
+```
+
+**Swap backends without touching node code:**
+```python
+# Dev (SQLite local)
+build_graph(llm, SQLiteExecutor("local.db"), RDFOntologyProvider(["retail.rdf"]))
+
+# Prod (StarRocks → Iceberg/Hive)
+build_graph(llm, StarRocksExecutor(host=..., catalog="iceberg_catalog"),
+            RDFOntologyProvider(["retail.rdf"]))
 ```
 
 ### Component Overview
 
 | Component | File(s) | Responsibility |
 |-----------|---------|----------------|
+| **OntologyProvider** | `src/ontology/provider.py` | ABC: `load() → OntologyContext` (schema for LLM + physical mappings + RDF rules) |
+| **RDFOntologyProvider** | `src/ontology/rdf_provider.py` | Reads RDF/OWL + `aip:physicalTable` annotations; renders physical table names into LLM prompt |
 | **Ontology Parser** | `src/ontology/parser.py` | Parse RDF/OWL → `OntologySchema` dataclass |
 | **Context Generator** | `src/ontology/context.py` | Convert schema to plain-text SQL description for LLM prompt |
-| **Agent Graph** | `src/agent/graph.py` | LangGraph `StateGraph` with conditional routing |
-| **Agent Nodes** | `src/agent/nodes.py` | `classify_intent`, `generate_sql`, `execute_sql_node`, `format_result`, `plan_analysis`, `execute_analysis_step`, `synthesize_results` |
-| **SQL Executor** | `src/database/executor.py` | `BaseExecutor` ABC + `SQLiteExecutor`; permission control; 5-second timeout |
+| **Agent Graph** | `src/agent/graph.py` | LangGraph `StateGraph`; accepts `OntologyProvider` + `BaseExecutor` via DI |
+| **Agent Nodes** | `src/agent/nodes.py` | All intent nodes: READ/WRITE, ANALYZE, DECIDE/OPERATE (Pattern D), UNCLEAR |
+| **BaseExecutor** | `src/database/executor.py` | ABC + `SQLiteExecutor`; permission control; 5-second timeout |
 | **Mock Data** | `src/database/mock_data.py` | Faker-based data generation with FK linking |
-| **LLM Abstraction** | `src/llm/base.py` | `LLMClient` Protocol — all providers implement this |
+| **LLM Abstraction** | `src/llm/base.py` | `LLMClient` Protocol — all providers duck-type this |
 | **Vertex AI Client** | `src/llm/vertex.py` | Gemini via `google-cloud-aiplatform` |
 | **OpenAI-compat Client** | `src/llm/openai_compat.py` | OpenAI and OpenRouter — single client, configurable `base_url` |
 | **Ollama Client** | `src/llm/ollama.py` | Local models via Ollama REST API |
+| **ObservabilityClient** | `src/observability/langfuse_client.py` | Langfuse tracing: LangGraph node spans + LLM generation spans; no-op when disabled |
 | **CLI** | `src/cli/app.py` | Domain selection, conversation loop, rich output |
 | **Web UI** | `src/web/app.py` | Streamlit chat interface |
 | **Visualizer** | `src/web/visualizer.py` | Auto chart type detection (bar/line/pie/area/stacked_bar) via Plotly |
@@ -248,7 +300,71 @@ classify_intent (LLM)
     ├─ READ    → single SELECT → format answer
     ├─ WRITE   → INSERT/UPDATE → user confirms → execute
     ├─ ANALYZE → decompose into 2-4 sub-queries → execute each → synthesize
+    ├─ DECIDE  → load RDF rules + extract user overrides
+    │              → query data → apply_decision (rule + override + data)
+    │              → present recommendation → [confirm] → execute operation plan
+    │              → rollback on error
+    ├─ OPERATE → load RDF operation steps + extract user overrides
+    │              → plan_operation (LLM + RDF scaffold)
+    │              → execute each step → rollback on error
     └─ UNCLEAR → ask clarifying question (max 2 retries)
+```
+
+### Pattern D — RDF Rules + Runtime Override (DECIDE / OPERATE)
+
+RDF annotations define default business rules; user prompt overrides them at runtime:
+
+```
+RDF ontology file (static)              User natural-language prompt (runtime)
+────────────────────────────────        ──────────────────────────────────────
+aip:decisionRule                        "skip the notification step today"
+aip:operationSteps                      "don't need approval, run it directly"
+aip:requiresApproval                    "only do the first two steps"
+aip:overridable = true  ←──────────── LLM extracts user_overrides → merged execution
+```
+
+Override priority (high → low):
+1. Safety hard constraints (`rollbackable=false`, ADMIN SQL) — never overridable
+2. User prompt overrides (when `aip:overridable=true`)
+3. RDF annotation defaults (`aip:decisionRule`, `aip:requiresApproval`)
+4. `config.yaml` global permissions
+
+### Ontology → Physical Storage Mapping
+
+Each RDF class carries `aip:physicalTable` / `aip:queryEngine` / `aip:partitionKeys` annotations. `RDFOntologyProvider` resolves these at load time and injects physical table names directly into the LLM schema context:
+
+```
+RDF annotation                        LLM sees in prompt
+─────────────────────────────         ──────────────────────────────────────────
+aip:physicalTable                  →  Table: iceberg_catalog.retail.orders
+  iceberg_catalog.retail.orders          -- entity: Order
+aip:partitionKeys  order_date      →    Partitioned by: order_date
+aip:decisionRule   IF overdue ...  →    [Decision Rule]: IF status='overdue'...
+```
+
+The LLM generates SQL with physical catalog paths (e.g. `SELECT * FROM iceberg_catalog.retail.orders`) that StarRocks can execute directly against Iceberg/Hive tables.
+
+### Observability (Langfuse)
+
+When `langfuse.enabled: true` in config, every agent invocation is traced:
+
+```
+agent.invoke(state, config={"callbacks": [handler]})
+    │
+    ├─ Trace: agent-query  (session_id, domain, user_query)
+    │    ├─ Span: classify_intent  (input state / output intent / latency)
+    │    ├─ Span: generate_sql     (output SQL)
+    │    │    └─ Generation: llm-chat  (model / prompt / response / token est.)
+    │    ├─ Span: execute_sql      (SQL / affected_rows / error)
+    │    └─ ...
+```
+
+Disabled by default — zero overhead when off. Enable in `config.local.yaml`:
+```yaml
+langfuse:
+  enabled: true
+  public_key: "pk-..."
+  secret_key: "sk-..."
 ```
 
 ### Permission Levels
@@ -398,6 +514,8 @@ ontology-aip-agent/
 ├── src/
 │   ├── config.py                # Config loader (yaml + env var override)
 │   ├── ontology/
+│   │   ├── provider.py          # OntologyProvider ABC + OntologyContext dataclass
+│   │   ├── rdf_provider.py      # RDFOntologyProvider: RDF + aip:physicalTable → LLM context
 │   │   ├── parser.py            # RDF/OWL → OntologySchema dataclass
 │   │   └── context.py           # Schema → LLM prompt text
 │   ├── database/
@@ -406,27 +524,33 @@ ontology-aip-agent/
 │   │   ├── executor.py          # BaseExecutor ABC + SQLiteExecutor
 │   │   └── connectors.py        # DataConnector ABC + MockMarketPriceConnector
 │   ├── agent/
-│   │   ├── graph.py             # LangGraph StateGraph
-│   │   ├── nodes.py             # All agent node functions
-│   │   └── state.py             # AgentState TypedDict
+│   │   ├── graph.py             # LangGraph StateGraph; accepts OntologyProvider
+│   │   ├── nodes.py             # All node functions incl. DECIDE/OPERATE (Pattern D)
+│   │   └── state.py             # AgentState TypedDict (incl. rdf_rules, decision, operation_plan)
 │   ├── llm/
 │   │   ├── base.py              # LLMClient Protocol
 │   │   ├── vertex.py            # Vertex AI Gemini client
 │   │   ├── openai_compat.py     # OpenAI + OpenRouter client (shared, OpenAI-compatible API)
 │   │   └── ollama.py            # Ollama local model client
+│   ├── observability/
+│   │   ├── __init__.py
+│   │   └── langfuse_client.py   # ObservabilityClient + LangfuseTrackedLLMClient
 │   ├── cli/
 │   │   └── app.py               # CLI entry point
 │   └── web/
 │       ├── app.py               # Streamlit web UI
 │       └── visualizer.py        # Plotly chart type detection + rendering
-├── tests/                       # 111 tests (pytest)
+├── tests/                       # pytest test suite
 │   ├── test_parser.py
 │   ├── test_schema.py
 │   ├── test_executor.py
 │   ├── test_agent.py
 │   ├── test_web.py
 │   ├── test_connectors.py
-│   └── test_openai_compat.py
+│   ├── test_openai_compat.py
+│   ├── test_pattern_d.py        # DECIDE/OPERATE nodes
+│   ├── test_rdf_provider.py     # OntologyProvider + physical mapping
+│   └── test_observability.py    # ObservabilityClient (mocked Langfuse)
 └── docs/
     └── superpowers/
         ├── specs/               # Design spec
