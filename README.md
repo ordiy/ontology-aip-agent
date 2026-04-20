@@ -1,5 +1,7 @@
 # Ontology-Driven Data Agent
 
+English | [中文](README-CN.md)
+
 A [Palantir AIP](https://www.palantir.com/platforms/aip/)-style data agent that uses OWL/RDF ontology definitions to understand domain semantics, auto-generates a SQLite database with realistic mock data, and lets users query and operate on data through natural language.
 
 > **Operations = Decisions.** The agent is not a read-only report tool — it can propose and execute write operations with user approval, aligning with Palantir AIP's philosophy that agents should take action.
