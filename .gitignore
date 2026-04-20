@@ -217,3 +217,14 @@ __marimo__/
 
 # Runtime SQLite databases
 data/
+
+# Claude Code local settings
+.claude/
+
+# GCP service account credential files (keep outside project dir)
+*-credentials.json
+*-service-account*.json
+*[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*.json
+
+# Local config overrides (never commit real credentials)
+config.local.yaml
