@@ -151,6 +151,28 @@ ollama:
   host: http://localhost:11434
 ```
 
+**OpenRouter (200+ models — Claude, Gemini, Llama, etc.):**
+```yaml
+llm:
+  provider: openrouter
+
+openrouter:
+  api_key: ""        # or export OPENROUTER_API_KEY=sk-or-v1-...
+  model: anthropic/claude-3.5-sonnet   # any model at openrouter.ai/models
+```
+
+**OpenAI:**
+```yaml
+llm:
+  provider: openai
+
+openai:
+  api_key: ""        # or export OPENAI_API_KEY=sk-...
+  model: gpt-4o
+```
+
+> API keys must never be committed. Put them in `config.local.yaml` (gitignored) or use environment variables.
+
 ### Run
 
 **CLI:**
@@ -343,10 +365,13 @@ export GOOGLE_APPLICATION_CREDENTIALS=/path/to/creds.json
 | Resource | Link |
 |----------|------|
 | Palantir AIP — Ontology & Agents | https://www.palantir.com/platforms/aip/ |
+| Microsoft Ontology-Playground (RDF domain files) | https://github.com/microsoft/Ontology-Playground |
 | LangGraph documentation | https://langchain-ai.github.io/langgraph/ |
 | rdflib (Python RDF library) | https://rdflib.readthedocs.io/ |
 | OWL Web Ontology Language (W3C) | https://www.w3.org/OWL/ |
 | Vertex AI Gemini API | https://cloud.google.com/vertex-ai/generative-ai/docs |
+| OpenRouter (200+ models, OpenAI-compatible) | https://openrouter.ai |
+| OpenAI API | https://platform.openai.com/docs/api-reference |
 | Ollama | https://ollama.com |
 | Streamlit | https://streamlit.io |
 | Faker (mock data) | https://faker.readthedocs.io/ |
