@@ -41,3 +41,10 @@ permissions:
   write: confirm
   delete: confirm
   admin: deny
+
+langfuse:
+  enabled: false              # 改为 true 开启追踪
+  public_key: ""              # LANGFUSE_PUBLIC_KEY 或 config.local.yaml
+  secret_key: ""              # LANGFUSE_SECRET_KEY 或 config.local.yaml
+  host: https://cloud.langfuse.com   # 自托管时改为内网地址
+  project: ontology-aip-agent

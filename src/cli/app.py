@@ -1,10 +1,13 @@
+import sys
 import sqlite3
 from pathlib import Path
+from uuid import uuid4
 from rich.console import Console
 from rich.table import Table
 from rich.syntax import Syntax
 from rich.prompt import Prompt, Confirm
 
+from src.observability import ObservabilityClient
 from src.config import load_config
 from src.ontology.parser import parse_ontology
 from src.ontology.context import generate_context
@@ -164,6 +167,7 @@ def _handle_system_command(cmd: str, schema, class_to_table: dict, db_path: str,
 
 def main():
     config = load_config()
+    obs = ObservabilityClient(config.get('langfuse', {}))
 
     # Find ontologies
     ontology_dir = "ontologies"
@@ -236,6 +240,8 @@ def main():
         )
         console.print(f"[cyan]Using Vertex AI: {config['llm']['model']}[/cyan]")
 
+    llm = obs.wrap_llm(llm)
+
     schema, db_path, class_to_table, ontology_context, agent, rdf_rules = _initialize_domain(
         domain_name, ontologies, config, llm
     )
@@ -245,6 +251,7 @@ def main():
     # Initialize before the conversation loop
     conversation_history = []  # List of {"query": str, "intent": str, "sql": str, "response": str}
     _llm_context_history = []  # Compact history for LLM context
+    session_id = str(uuid4())
 
     # Conversation loop
     while True:
@@ -309,7 +316,13 @@ def main():
             "current_op_index": 0,
         }
 
-        result = agent.invoke(initial_state)
+        handler = obs.get_handler(
+            session_id=session_id,
+            trace_name=f'query:{initial_state.get("intent", "unknown")}',
+            metadata={'domain': domain_name, 'query': user_input},
+        )
+        invoke_config = {'callbacks': [handler]} if handler else {}
+        result = agent.invoke(initial_state, invoke_config)
 
         # Show intent
         if result.get("intent"):
@@ -343,7 +356,7 @@ def main():
                 if Confirm.ask("\nExecute this decision?", default=False):
                     result["approved"] = True
                     # Re-invoke to continue to plan_operation
-                    result = agent.invoke(result)
+                    result = agent.invoke(result, invoke_config)
                 else:
                     console.print("[dim]Cancelled.[/dim]")
                     continue
