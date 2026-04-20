@@ -52,6 +52,60 @@ def _find_ontologies(ontology_dir: str) -> dict[str, str]:
     return result
 
 
+def _build_llm(config: dict):
+    """Instantiate the LLM client specified by config['llm']['provider'].
+
+    Supported providers:
+      vertex     — Google Vertex AI Gemini (default)
+      ollama     — Local Ollama server
+      openai     — OpenAI API
+      openrouter — OpenRouter (200+ models, OpenAI-compatible)
+    """
+    provider = config["llm"].get("provider", "vertex")
+
+    if provider == "ollama":
+        from src.llm.ollama import OllamaClient
+        return OllamaClient(
+            host=config["ollama"]["host"],
+            model_name=config["ollama"]["model"],
+        )
+
+    if provider == "openai":
+        from src.llm.openai_compat import OpenAICompatClient
+        cfg = config["openai"]
+        return OpenAICompatClient(
+            api_key=cfg["api_key"],
+            model_name=cfg.get("model", "gpt-4o"),
+            base_url=cfg.get("base_url", "https://api.openai.com/v1"),
+            provider_name="OpenAI",
+        )
+
+    if provider == "openrouter":
+        from src.llm.openai_compat import OpenAICompatClient
+        cfg = config["openrouter"]
+        extra_headers = {}
+        if cfg.get("site_url"):
+            extra_headers["HTTP-Referer"] = cfg["site_url"]
+        if cfg.get("app_name"):
+            extra_headers["X-Title"] = cfg["app_name"]
+        return OpenAICompatClient(
+            api_key=cfg["api_key"],
+            model_name=cfg.get("model", "anthropic/claude-3.5-sonnet"),
+            base_url=cfg.get("base_url", "https://openrouter.ai/api/v1"),
+            provider_name="OpenRouter",
+            extra_headers=extra_headers,
+        )
+
+    # Default: Vertex AI Gemini
+    from src.llm.vertex import VertexGeminiClient
+    return VertexGeminiClient(
+        project=config["vertex"]["project"],
+        location=config["vertex"]["location"],
+        model_name=config["llm"]["model"],
+        credentials_path=config["vertex"].get("credentials", ""),
+    )
+
+
 @st.cache_resource(show_spinner="Loading domain...")
 def _load_domain(domain_name: str, rdf_path: str, config: dict):
     """Load and initialize a domain: parse ontology, create DB, generate mock data.
@@ -76,21 +130,7 @@ def _load_domain(domain_name: str, rdf_path: str, config: dict):
     generate_mock_data(db_path, schema, rows_per_table=config["database"]["mock_rows_per_table"])
 
     # Initialize LLM based on config provider
-    provider = config["llm"].get("provider", "vertex")
-    if provider == "ollama":
-        from src.llm.ollama import OllamaClient
-        llm = OllamaClient(
-            host=config["ollama"]["host"],
-            model_name=config["ollama"]["model"],
-        )
-    else:
-        from src.llm.vertex import VertexGeminiClient
-        llm = VertexGeminiClient(
-            project=config["vertex"]["project"],
-            location=config["vertex"]["location"],
-            model_name=config["llm"]["model"],
-            credentials_path=config["vertex"].get("credentials", ""),
-        )
+    llm = _build_llm(config)
 
     executor = SQLExecutor(db_path, config["permissions"])
     ontology_context = generate_context(schema)

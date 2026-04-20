@@ -13,6 +13,18 @@ ollama:
   model: llama3
   timeout: 120
 
+openai:
+  api_key: ""           # set OPENAI_API_KEY env var, or use config.local.yaml
+  model: gpt-4o
+  base_url: https://api.openai.com/v1
+
+openrouter:
+  api_key: ""           # set OPENROUTER_API_KEY env var, or use config.local.yaml
+  model: anthropic/claude-3.5-sonnet   # any model at openrouter.ai/models
+  base_url: https://openrouter.ai/api/v1
+  site_url: ""          # optional: your app URL for OpenRouter analytics
+  app_name: ontology-aip-agent
+
 database:
   type: sqlite        # sqlite | starrocks — future StarRocksExecutor reads this
   path: ./data/

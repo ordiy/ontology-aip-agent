@@ -185,7 +185,7 @@ def main():
         domain_name = names[0]
 
     console.print("[cyan]Connecting to LLM...[/cyan]")
-    
+
     # Choose LLM provider based on config
     provider = config["llm"].get("provider", "vertex")
     if provider == "ollama":
@@ -196,14 +196,44 @@ def main():
             timeout=config["ollama"]["timeout"],
         )
         console.print(f"[cyan]Using Ollama: {config['ollama']['model']} at {config['ollama']['host']}[/cyan]")
+
+    elif provider == "openai":
+        from src.llm.openai_compat import OpenAICompatClient
+        cfg = config["openai"]
+        llm = OpenAICompatClient(
+            api_key=cfg["api_key"],
+            model_name=cfg.get("model", "gpt-4o"),
+            base_url=cfg.get("base_url", "https://api.openai.com/v1"),
+            provider_name="OpenAI",
+        )
+        console.print(f"[cyan]Using OpenAI: {cfg.get('model', 'gpt-4o')}[/cyan]")
+
+    elif provider == "openrouter":
+        from src.llm.openai_compat import OpenAICompatClient
+        cfg = config["openrouter"]
+        extra_headers = {}
+        if cfg.get("site_url"):
+            extra_headers["HTTP-Referer"] = cfg["site_url"]
+        if cfg.get("app_name"):
+            extra_headers["X-Title"] = cfg["app_name"]
+        llm = OpenAICompatClient(
+            api_key=cfg["api_key"],
+            model_name=cfg.get("model", "anthropic/claude-3.5-sonnet"),
+            base_url=cfg.get("base_url", "https://openrouter.ai/api/v1"),
+            provider_name="OpenRouter",
+            extra_headers=extra_headers,
+        )
+        console.print(f"[cyan]Using OpenRouter: {cfg.get('model', 'anthropic/claude-3.5-sonnet')}[/cyan]")
+
     else:
-        # Default: Vertex AI
+        # Default: Vertex AI Gemini
         llm = VertexGeminiClient(
             project=config["vertex"]["project"],
             location=config["vertex"]["location"],
             model_name=config["llm"]["model"],
             credentials_path=config["vertex"].get("credentials", ""),
         )
+        console.print(f"[cyan]Using Vertex AI: {config['llm']['model']}[/cyan]")
 
     schema, db_path, class_to_table, ontology_context, agent = _initialize_domain(
         domain_name, ontologies, config, llm

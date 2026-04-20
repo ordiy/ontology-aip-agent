@@ -20,6 +20,21 @@ DEFAULTS = {
         "model": "llama3",
         "timeout": 120,
     },
+    # OpenAI API — https://platform.openai.com/docs/api-reference
+    "openai": {
+        "api_key": "",    # or set OPENAI_API_KEY env var
+        "model": "gpt-4o",
+        "base_url": "https://api.openai.com/v1",
+    },
+    # OpenRouter — 200+ models under one API key: https://openrouter.ai/docs
+    "openrouter": {
+        "api_key": "",    # or set OPENROUTER_API_KEY env var
+        "model": "anthropic/claude-3.5-sonnet",
+        "base_url": "https://openrouter.ai/api/v1",
+        # Optional: identify your app for OpenRouter analytics / rate-limit tiers
+        "site_url": "",
+        "app_name": "ontology-aip-agent",
+    },
     "database": {
         "path": "./data/",
         "mock_rows_per_table": 100,
@@ -39,6 +54,8 @@ ENV_OVERRIDES = {
     "GOOGLE_CLOUD_LOCATION": ("vertex", "location"),
     # Allow credentials path override via env var (useful for Streamlit / Docker)
     "GOOGLE_APPLICATION_CREDENTIALS": ("vertex", "credentials"),
+    "OPENAI_API_KEY": ("openai", "api_key"),
+    "OPENROUTER_API_KEY": ("openrouter", "api_key"),
 }
 
 
