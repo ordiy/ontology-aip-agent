@@ -1,4 +1,3 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <rdf:RDF
     xml:base="http://example.org/ontology/retail-store/"
     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
@@ -19,6 +18,9 @@
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#rollbackable"/>
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#overridable"/>
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#severity"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#physicalTable"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#queryEngine"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#partitionKeys"/>
 
     <owl:Class rdf:about="http://example.org/ontology/retail-store/Customer">
         <rdfs:label>Customer</rdfs:label>
@@ -28,6 +30,8 @@
         <aip:rollbackable rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</aip:rollbackable>
         <aip:overridable rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</aip:overridable>
         <aip:severity>low</aip:severity>
+        <aip:physicalTable>iceberg_catalog.retail.customers</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
     </owl:Class>
 
     <owl:Class rdf:about="http://example.org/ontology/retail-store/Product">
@@ -38,6 +42,9 @@
         <aip:rollbackable rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</aip:rollbackable>
         <aip:overridable rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</aip:overridable>
         <aip:severity>medium</aip:severity>
+        <aip:physicalTable>iceberg_catalog.retail.products</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
+        <aip:partitionKeys>category_id</aip:partitionKeys>
     </owl:Class>
 
     <owl:Class rdf:about="http://example.org/ontology/retail-store/Order">
@@ -48,12 +55,19 @@
         <aip:rollbackable rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</aip:rollbackable>
         <aip:overridable rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</aip:overridable>
         <aip:severity>medium</aip:severity>
+        <aip:physicalTable>iceberg_catalog.retail.orders</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
+        <aip:partitionKeys>order_date</aip:partitionKeys>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/retail-store/OrderItem">
         <rdfs:label>OrderItem</rdfs:label>
+        <aip:physicalTable>iceberg_catalog.retail.order_items</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/retail-store/Category">
         <rdfs:label>Category</rdfs:label>
+        <aip:physicalTable>iceberg_catalog.retail.categories</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
     </owl:Class>
 
     <owl:DatatypeProperty rdf:about="http://example.org/ontology/retail-store/customer_customerId">

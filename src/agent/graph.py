@@ -1,4 +1,3 @@
-from langgraph.graph import StateGraph, END
 from src.agent.state import AgentState
 from src.agent.nodes import (
     load_ontology_context,
@@ -19,6 +18,7 @@ from src.agent.nodes import (
 )
 from src.llm.base import LLMClient
 from src.database.executor import BaseExecutor
+from src.ontology.provider import OntologyProvider
 
 
 def _route_after_intent(state: AgentState) -> str:
@@ -102,7 +102,9 @@ def _route_after_op_step(state: AgentState) -> str:
     return "synthesize"
 
 
-def build_graph(llm: LLMClient, executor: BaseExecutor, ontology_context: str):
+def build_graph(llm: LLMClient, executor: BaseExecutor, ontology: OntologyProvider):
+    ctx = ontology.context
+    
     # Capture dialect once so the generate_sql closure uses the right SQL syntax.
     # When a future StarRocksExecutor is plugged in, its dialect property will
     # automatically switch the LLM prompt to MySQL-compatible syntax.
@@ -111,7 +113,10 @@ def build_graph(llm: LLMClient, executor: BaseExecutor, ontology_context: str):
     graph = StateGraph(AgentState)
 
     # Existing nodes
-    graph.add_node("load_context", lambda state: load_ontology_context(state, ontology_context))
+    graph.add_node("load_context", lambda state: {
+        "ontology_context": ctx.schema_for_llm,
+        "rdf_rules": ctx.rules,
+    })
     graph.add_node("classify_intent", lambda state: classify_intent(state, llm))
     graph.add_node("generate_sql", lambda state: generate_sql(state, llm, db_dialect=db_dialect))
     graph.add_node("execute_sql", lambda state: execute_sql_node(state, executor))

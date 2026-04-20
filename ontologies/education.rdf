@@ -1,3 +1,4 @@
+[STARTUP] Cannot measure phase 'cleanup_ops': start mark 'startup:cleanup_ops:start' not found (likely cleared by reset).
 <?xml version="1.0" encoding="UTF-8"?>
 <rdf:RDF
     xml:base="http://example.org/ontology/education-platform/"
@@ -19,30 +20,46 @@
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#rollbackable"/>
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#overridable"/>
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#severity"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#physicalTable"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#queryEngine"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#partitionKeys"/>
 
     <owl:Class rdf:about="http://example.org/ontology/education-platform/Student">
         <rdfs:label>Student</rdfs:label>
         <aip:decisionRule>IF gpa &lt; 2.0 THEN recommend_academic_probation</aip:decisionRule>
         <aip:operationSteps>1:verify_gpa_history,2:assign_academic_advisor,3:notify_student_status_change</aip:operationSteps>
         <aip:requiresApproval>user</aip:requiresApproval>
+        <aip:physicalTable>iceberg_catalog.education.students</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
+        <aip:partitionKeys>enrollmentDate</aip:partitionKeys>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/education-platform/Course">
         <rdfs:label>Course</rdfs:label>
+        <aip:physicalTable>iceberg_catalog.education.courses</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/education-platform/Instructor">
         <rdfs:label>Instructor</rdfs:label>
+        <aip:physicalTable>iceberg_catalog.education.instructors</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/education-platform/Enrollment">
         <rdfs:label>Enrollment</rdfs:label>
         <aip:decisionRule>IF status='enrolled' AND enrolledAt &lt; date('now', '-1 semester') AND grade IS NULL THEN recommend_withdrawal_review</aip:decisionRule>
         <aip:operationSteps>1:check_attendance_record,2:contact_student_warning,3:process_administrative_withdrawal</aip:operationSteps>
         <aip:requiresApproval>user</aip:requiresApproval>
+        <aip:physicalTable>iceberg_catalog.education.enrollments</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
+        <aip:partitionKeys>enrolledAt</aip:partitionKeys>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/education-platform/Assignment">
         <rdfs:label>Assignment</rdfs:label>
         <aip:decisionRule>IF dueDate &lt; date('now') THEN recommend_grading_reminders_for_instructor</aip:decisionRule>
         <aip:operationSteps>1:count_unsubmitted_assignments,2:send_instructor_notification</aip:operationSteps>
         <aip:requiresApproval>auto</aip:requiresApproval>
+        <aip:physicalTable>iceberg_catalog.education.assignments</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
+        <aip:partitionKeys>dueDate</aip:partitionKeys>
     </owl:Class>
 
     <owl:DatatypeProperty rdf:about="http://example.org/ontology/education-platform/student_studentId">

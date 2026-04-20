@@ -1,4 +1,3 @@
-import sys
 import sqlite3
 from pathlib import Path
 from rich.console import Console
@@ -9,6 +8,7 @@ from rich.prompt import Prompt, Confirm
 from src.config import load_config
 from src.ontology.parser import parse_ontology
 from src.ontology.context import generate_context
+from src.ontology.rdf_provider import RDFOntologyProvider
 from src.database.schema import create_tables
 from src.database.mock_data import generate_mock_data
 from src.database.executor import SQLExecutor
@@ -75,7 +75,8 @@ def _initialize_domain(domain_name: str, ontologies: dict, config: dict, llm) ->
 
     ontology_context = generate_context(schema)
     executor = SQLExecutor(db_path, config["permissions"])
-    agent = build_graph(llm, executor, ontology_context)
+    ontology = RDFOntologyProvider([rdf_path])
+    agent = build_graph(llm=llm, executor=executor, ontology=ontology)
 
     return schema, db_path, class_to_table, ontology_context, agent, schema.rules
 

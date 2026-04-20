@@ -1,3 +1,4 @@
+[STARTUP] Cannot measure phase 'cleanup_ops': start mark 'startup:cleanup_ops:start' not found (likely cleared by reset).
 <?xml version="1.0" encoding="UTF-8"?>
 <rdf:RDF
     xml:base="http://example.org/ontology/e-commerce-platform/"
@@ -20,6 +21,9 @@
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#rollbackable"/>
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#overridable"/>
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#severity"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#physicalTable"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#queryEngine"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#partitionKeys"/>
 
     <!-- ===================== -->
     <!-- Entity Types (Classes) -->
@@ -33,6 +37,9 @@
         <aip:decisionRule>IF totalSpent > 1000 AND loyaltyTier='Standard' THEN recommend_tier_upgrade</aip:decisionRule>
         <aip:operationSteps>1:calculate_spend_index,2:evaluate_tier_potential,3:update_loyalty_tier</aip:operationSteps>
         <aip:requiresApproval>user</aip:requiresApproval>
+        <aip:physicalTable>iceberg_catalog.ecommerce.buyers</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
+        <aip:partitionKeys>memberSince</aip:partitionKeys>
     </owl:Class>
 
     <owl:Class rdf:about="http://example.org/ontology/e-commerce-platform/Product">
@@ -43,6 +50,8 @@
         <aip:decisionRule>IF stockQty &lt; 5 THEN recommend_restock</aip:decisionRule>
         <aip:operationSteps>1:check_supplier_availability,2:create_purchase_order,3:update_stock_flag</aip:operationSteps>
         <aip:requiresApproval>auto</aip:requiresApproval>
+        <aip:physicalTable>iceberg_catalog.ecommerce.products</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
     </owl:Class>
 
     <owl:Class rdf:about="http://example.org/ontology/e-commerce-platform/Cart">
@@ -50,6 +59,9 @@
         <rdfs:comment>Active shopping session</rdfs:comment>
         <ont:icon>🛍️</ont:icon>
         <ont:color>#FFB900</ont:color>
+        <aip:physicalTable>iceberg_catalog.ecommerce.carts</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
+        <aip:partitionKeys>createdAt</aip:partitionKeys>
     </owl:Class>
 
     <owl:Class rdf:about="http://example.org/ontology/e-commerce-platform/Order">
@@ -60,6 +72,9 @@
         <aip:operationSteps>1:verify_payment_status,2:notify_buyer,3:cancel_order,4:release_stock</aip:operationSteps>
         <aip:requiresApproval>user</aip:requiresApproval>
         <ont:color>#8764B8</ont:color>
+        <aip:physicalTable>iceberg_catalog.ecommerce.orders</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
+        <aip:partitionKeys>orderDate</aip:partitionKeys>
     </owl:Class>
 
     <owl:Class rdf:about="http://example.org/ontology/e-commerce-platform/Review">
@@ -67,6 +82,8 @@
         <rdfs:comment>Customer product review and rating</rdfs:comment>
         <ont:icon>⭐</ont:icon>
         <ont:color>#00B7C3</ont:color>
+        <aip:physicalTable>iceberg_catalog.ecommerce.reviews</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
     </owl:Class>
 
     <!-- ================ -->

@@ -1,4 +1,3 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <rdf:RDF
     xml:base="http://example.org/ontology/financial-services/"
     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
@@ -19,9 +18,14 @@
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#rollbackable"/>
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#overridable"/>
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#severity"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#physicalTable"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#queryEngine"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#partitionKeys"/>
 
     <owl:Class rdf:about="http://example.org/ontology/financial-services/Customer">
         <rdfs:label>Customer</rdfs:label>
+        <aip:physicalTable>iceberg_catalog.finance.customers</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/financial-services/Account">
         <rdfs:label>Account</rdfs:label>
@@ -29,6 +33,9 @@
         <aip:operationSteps>1:verify_balance,2:notify_customer,3:update_account_status_to_frozen</aip:operationSteps>
         <aip:requiresApproval>user</aip:requiresApproval>
         <aip:severity>high</aip:severity>
+        <aip:physicalTable>iceberg_catalog.finance.accounts</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
+        <aip:partitionKeys>openedDate</aip:partitionKeys>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/financial-services/Transaction">
         <rdfs:label>Transaction</rdfs:label>
@@ -36,15 +43,24 @@
         <aip:operationSteps>1:flag_transaction,2:hold_funds,3:notify_compliance_officer</aip:operationSteps>
         <aip:requiresApproval>admin</aip:requiresApproval>
         <aip:severity>critical</aip:severity>
+        <aip:physicalTable>iceberg_catalog.finance.transactions</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
+        <aip:partitionKeys>transactionDate</aip:partitionKeys>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/financial-services/Loan">
         <rdfs:label>Loan</rdfs:label>
         <aip:decisionRule>IF status='active' AND creditScore &lt; 500 THEN recommend_default_risk_review</aip:decisionRule>
         <aip:operationSteps>1:assess_collateral,2:initiate_review_workflow</aip:operationSteps>
         <aip:requiresApproval>user</aip:requiresApproval>
+        <aip:physicalTable>iceberg_catalog.finance.loans</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
+        <aip:partitionKeys>startDate</aip:partitionKeys>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/financial-services/Investment">
         <rdfs:label>Investment</rdfs:label>
+        <aip:physicalTable>iceberg_catalog.finance.investments</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
+        <aip:partitionKeys>purchaseDate</aip:partitionKeys>
     </owl:Class>
 
     <owl:DatatypeProperty rdf:about="http://example.org/ontology/financial-services/customer_customerId">

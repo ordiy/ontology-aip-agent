@@ -1,4 +1,3 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <rdf:RDF
     xml:base="http://example.org/ontology/healthcare-system/"
     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
@@ -19,27 +18,44 @@
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#rollbackable"/>
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#overridable"/>
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#severity"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#physicalTable"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#queryEngine"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#partitionKeys"/>
 
     <owl:Class rdf:about="http://example.org/ontology/healthcare-system/Patient">
         <rdfs:label>Patient</rdfs:label>
+        <aip:physicalTable>iceberg_catalog.healthcare.patient</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
+        <aip:partitionKeys>dateOfBirth</aip:partitionKeys>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/healthcare-system/Doctor">
         <rdfs:label>Doctor</rdfs:label>
+        <aip:physicalTable>iceberg_catalog.healthcare.doctor</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/healthcare-system/Appointment">
         <rdfs:label>Appointment</rdfs:label>
         <aip:decisionRule>IF status='scheduled' AND appointmentDate &lt; datetime('now') THEN recommend_mark_no_show</aip:decisionRule>
         <aip:operationSteps>1:verify_attendance,2:update_status_to_no_show,3:notify_patient_reschedule</aip:operationSteps>
         <aip:requiresApproval>auto</aip:requiresApproval>
+        <aip:physicalTable>iceberg_catalog.healthcare.appointment</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
+        <aip:partitionKeys>appointmentDate</aip:partitionKeys>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/healthcare-system/Prescription">
         <rdfs:label>Prescription</rdfs:label>
         <aip:decisionRule>IF prescribedDate &lt; date('now', '-1 year') THEN recommend_prescription_renewal_review</aip:decisionRule>
         <aip:operationSteps>1:check_recent_vitals,2:schedule_doctor_consultation</aip:operationSteps>
         <aip:requiresApproval>user</aip:requiresApproval>
+        <aip:physicalTable>iceberg_catalog.healthcare.prescription</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
+        <aip:partitionKeys>prescribedDate</aip:partitionKeys>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/healthcare-system/MedicalRecord">
         <rdfs:label>MedicalRecord</rdfs:label>
+        <aip:physicalTable>iceberg_catalog.healthcare.medicalrecord</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
+        <aip:partitionKeys>recordDate</aip:partitionKeys>
     </owl:Class>
 
     <owl:DatatypeProperty rdf:about="http://example.org/ontology/healthcare-system/patient_patientId">

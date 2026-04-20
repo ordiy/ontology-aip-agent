@@ -1,4 +1,3 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <rdf:RDF
     xml:base="http://example.org/ontology/manufacturing-plant/"
     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
@@ -19,30 +18,45 @@
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#rollbackable"/>
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#overridable"/>
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#severity"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#physicalTable"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#queryEngine"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#partitionKeys"/>
 
     <owl:Class rdf:about="http://example.org/ontology/manufacturing-plant/Product">
         <rdfs:label>Product</rdfs:label>
+        <aip:physicalTable>iceberg_catalog.manufacturing.products</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/manufacturing-plant/WorkOrder">
         <rdfs:label>WorkOrder</rdfs:label>
         <aip:decisionRule>IF status='pending' AND startDate &lt; date('now') THEN recommend_expedite_order</aip:decisionRule>
         <aip:operationSteps>1:check_resource_capacity,2:prioritize_in_queue,3:notify_supervisor</aip:operationSteps>
         <aip:requiresApproval>user</aip:requiresApproval>
+        <aip:physicalTable>iceberg_catalog.manufacturing.work_orders</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
+        <aip:partitionKeys>startDate</aip:partitionKeys>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/manufacturing-plant/Machine">
         <rdfs:label>Machine</rdfs:label>
         <aip:decisionRule>IF lastMaintenance &lt; date('now', '-3 months') OR status='warning' THEN recommend_preventive_maintenance</aip:decisionRule>
         <aip:operationSteps>1:check_spare_parts,2:schedule_technician,3:create_maintenance_log</aip:operationSteps>
         <aip:requiresApproval>auto</aip:requiresApproval>
+        <aip:physicalTable>iceberg_catalog.manufacturing.machines</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
+        <aip:partitionKeys>lastMaintenance</aip:partitionKeys>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/manufacturing-plant/Material">
         <rdfs:label>Material</rdfs:label>
         <aip:decisionRule>IF stockQty &lt; 100 THEN recommend_reorder_raw_material</aip:decisionRule>
         <aip:operationSteps>1:select_best_supplier,2:issue_purchase_request,3:update_inventory_status</aip:operationSteps>
         <aip:requiresApproval>auto</aip:requiresApproval>
+        <aip:physicalTable>iceberg_catalog.manufacturing.materials</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/manufacturing-plant/Supplier">
         <rdfs:label>Supplier</rdfs:label>
+        <aip:physicalTable>iceberg_catalog.manufacturing.suppliers</aip:physicalTable>
+        <aip:queryEngine>starrocks</aip:queryEngine>
     </owl:Class>
 
     <owl:DatatypeProperty rdf:about="http://example.org/ontology/manufacturing-plant/product_productId">
