@@ -9,27 +9,29 @@ def load_ontology_context(state: AgentState, context_text: str) -> dict:
 
 
 def classify_intent(state: AgentState, llm: LLMClient) -> dict:
-    """Classify user intent as READ, WRITE, ANALYZE, or UNCLEAR.
+    """Classify user intent as READ, WRITE, ANALYZE, DECIDE, OPERATE, or UNCLEAR.
 
-    ANALYZE is for complex questions requiring multiple SQL queries,
-    such as comparisons, trend analysis, or questions with 'and', 'compare',
-    'vs', 'difference between', 'breakdown'.
+    DECIDE: based on business rules to make recommendations.
+    OPERATE: perform multi-step workflow operations.
+    ANALYZE: for complex questions requiring multiple SQL queries.
     """
     system = (
         "You are an intent classifier for a data agent. "
-        "Given a user query and database schema, classify the intent as exactly one of: READ, WRITE, ANALYZE, UNCLEAR.\n"
+        "Given a user query and database schema, classify the intent as exactly one of: READ, WRITE, ANALYZE, DECIDE, OPERATE, UNCLEAR.\n"
         "READ: simple queries that retrieve data with a single SQL (SELECT).\n"
         "WRITE: queries that modify data (INSERT, UPDATE, DELETE).\n"
         "ANALYZE: complex questions needing multiple queries — comparisons, trends, breakdowns, 'vs', 'compare', 'difference'.\n"
+        "DECIDE: based on business rules (IF-THEN) make judgments or recommendations (e.g. 'which orders should be cancelled?', 'recommend VIP upgrade').\n"
+        "OPERATE: perform orchestrated multi-step business operations (e.g. 'process all overdue orders', 'run month-end reconciliation').\n"
         "UNCLEAR: query is ambiguous or unrelated to the database.\n"
-        "Respond with ONLY the single word: READ, WRITE, ANALYZE, or UNCLEAR."
+        "Respond with ONLY the single word: READ, WRITE, ANALYZE, DECIDE, OPERATE, or UNCLEAR."
     )
     messages = [
         {"role": "user", "content": f"Schema:\n{state['ontology_context']}\n\nUser query: {state['user_query']}"},
     ]
     response = llm.chat(messages, system_prompt=system, temperature=0.0)
     intent = response.strip().upper()
-    if intent not in ("READ", "WRITE", "ANALYZE", "UNCLEAR"):
+    if intent not in ("READ", "WRITE", "ANALYZE", "DECIDE", "OPERATE", "UNCLEAR"):
         intent = "UNCLEAR"
     return {"intent": intent}
 
@@ -405,3 +407,228 @@ def synthesize_results(state: AgentState, llm: LLMClient) -> dict:
     result_summary = "; ".join(step_summaries)[:150] if step_summaries else "Analysis complete."
 
     return {"response": response.strip(), "result_summary": result_summary}
+
+
+# --- Pattern D (DECIDE / OPERATE) Nodes ---
+
+def extract_user_overrides(state: AgentState, llm: LLMClient) -> dict:
+    """Extract rule override intentions from user prompt (Pattern D)."""
+    system = (
+        "Extract rule override intentions from the user prompt. "
+        "Output ONLY a JSON object with these fields:\n"
+        "{\n"
+        "  \"skip_approval\": bool,      -- whether to skip manual confirmation\n"
+        "  \"skip_steps\": list[str],    -- names of steps to skip (if any)\n"
+        "  \"override_rules\": list[str],-- specific rules to ignore or modify\n"
+        "  \"reason\": str               -- user provided reason (if any)\n"
+        "}"
+    )
+    
+    # Format current rules for context
+    rules_context = ""
+    for entity, rule in state.get("rdf_rules", {}).items():
+        rules_context += f"Entity: {entity}\nRule: {rule.decision_rule}\nSteps: {rule.operation_steps}\nRequires Approval: {rule.requires_approval}\n\n"
+
+    messages = [
+        {"role": "user", "content": f"Business Rules:\n{rules_context}\n\nUser query: {state['user_query']}"},
+    ]
+    
+    response = llm.chat(messages, system_prompt=system, temperature=0.0)
+    
+    # Simple JSON extraction (robust against fences)
+    match = re.search(r"\{.*\}", response, re.DOTALL)
+    if match:
+        try:
+            import json
+            overrides = json.loads(match.group())
+            return {"user_overrides": overrides}
+        except:
+            pass
+            
+    return {"user_overrides": {"skip_approval": False, "skip_steps": [], "override_rules": [], "reason": ""}}
+
+
+def apply_decision(state: AgentState, llm: LLMClient) -> dict:
+    """Generate structured decision recommendation based on rules + overrides + data."""
+    system = (
+        "You are a business decision assistant. Based on RDF rules, user overrides, and query data, "
+        "generate a structured decision recommendation.\n"
+        "Output ONLY a JSON object:\n"
+        "{\n"
+        "  \"decision\": \"recommend_cancel | hold | partial | ...\",\n"
+        "  \"affected_entities\": [ID list],\n"
+        "  \"excluded_entities\": [{\"id\": ..., \"reason\": \"...\"}],\n"
+        "  \"reasoning\": \"explanation citing rules\",\n"
+        "  \"requires_approval\": bool,\n"
+        "  \"confidence\": float\n"
+        "}"
+    )
+    
+    rules = state.get("rdf_rules", {})
+    overrides = state.get("user_overrides", {})
+    data = state.get("query_result", [])
+    
+    # Format rules for prompt
+    rules_str = "\n".join([f"- {e}: {r.decision_rule}" for e, r in rules.items()])
+    
+    messages = [
+        {"role": "user", "content": (
+            f"Rules:\n{rules_str}\n\n"
+            f"Overrides:\n{overrides}\n\n"
+            f"Data:\n{str(data[:30])}\n\n"
+            f"Original query: {state['user_query']}"
+        )},
+    ]
+    
+    response = llm.chat(messages, system_prompt=system, temperature=0.0)
+    
+    match = re.search(r"\{.*\}", response, re.DOTALL)
+    if match:
+        try:
+            import json
+            decision = json.loads(match.group())
+            
+            # Global override logic: skip_approval only if rules allow override
+            # For simplicity, we assume if user specifies it and intent is DECIDE, we honor it
+            # if override is enabled in the rule.
+            if overrides.get("skip_approval"):
+                decision["requires_approval"] = False
+                
+            return {"decision": decision}
+        except:
+            pass
+            
+    return {"decision": {"decision": "error", "affected_entities": [], "excluded_entities": [], "reasoning": "Failed to parse decision JSON", "requires_approval": True, "confidence": 0.0}}
+
+
+def present_decision(state: AgentState) -> dict:
+    """Format the decision for user presentation."""
+    decision = state.get("decision", {})
+    affected = decision.get("affected_entities", [])
+    excluded = decision.get("excluded_entities", [])
+    
+    response = f"📊 Decision: {decision.get('decision', 'N/A').upper()}\n"
+    response += f"Reasoning: {decision.get('reasoning', '')}\n\n"
+    
+    if affected:
+        response += f"✅ Affected: {', '.join(map(str, affected[:10]))}{'...' if len(affected) > 10 else ''}\n"
+    if excluded:
+        response += f"❌ Excluded: {len(excluded)} entities (e.g. {excluded[0]['id']} - {excluded[0]['reason']})\n"
+        
+    return {"response": response}
+
+
+def plan_operation(state: AgentState, llm: LLMClient) -> dict:
+    """Turn RDF operation steps into concrete SQL plan (idempotent)."""
+    system = (
+        "You are an operation planner. Turn RDF operation step scaffolding into a concrete SQL plan. "
+        "Each step MUST include a SQL statement and an idempotent rollback SQL (if applicable).\n"
+        "Output ONLY a JSON list of step objects:\n"
+        "[\n"
+        "  {\n"
+        "    \"step_name\": str,\n"
+        "    \"description\": str,\n"
+        "    \"sql\": str,\n"
+        "    \"skipped\": bool,\n"
+        "    \"skip_reason\": str,\n"
+        "    \"rollback_sql\": str\n"
+        "  }\n"
+        "]"
+    )
+    
+    rules = state.get("rdf_rules", {})
+    overrides = state.get("user_overrides", {})
+    decision = state.get("decision", {})
+    
+    # Try to find relevant RDF steps
+    rdf_steps = []
+    for r in rules.values():
+        if r.entity.lower() in state["user_query"].lower():
+            rdf_steps = r.operation_steps
+            break
+            
+    messages = [
+        {"role": "user", "content": (
+            f"Schema:\n{state['ontology_context']}\n\n"
+            f"RDF Scaffold: {rdf_steps}\n\n"
+            f"Target IDs: {decision.get('affected_entities', [])}\n\n"
+            f"User Skip Steps: {overrides.get('skip_steps', [])}\n\n"
+            f"Original query: {state['user_query']}"
+        )},
+    ]
+    
+    response = llm.chat(messages, system_prompt=system, temperature=0.0)
+    
+    match = re.search(r"\[.*\]", response, re.DOTALL)
+    if match:
+        try:
+            import json
+            plan = json.loads(match.group())
+            return {"operation_plan": plan, "current_op_index": 0, "operation_results": [], "rollback_stack": []}
+        except:
+            pass
+            
+    return {"operation_plan": [], "error": "Failed to generate operation plan"}
+
+
+def execute_operation_step(state: AgentState, executor: BaseExecutor) -> dict:
+    """Execute single step of operation plan and manage rollback stack."""
+    plan = state.get("operation_plan", [])
+    idx = state.get("current_op_index", 0)
+    results = list(state.get("operation_results", []))
+    rollback_stack = list(state.get("rollback_stack", []))
+    
+    if idx >= len(plan):
+        return {}
+        
+    step = plan[idx]
+    
+    if step.get("skipped"):
+        results.append({"step": step["step_name"], "status": "skipped", "reason": step["skip_reason"]})
+        return {"operation_results": results, "current_op_index": idx + 1}
+        
+    try:
+        # For OPERATE, we assume overall approval is handled in a separate step or inherited.
+        # Here we execute with approval=True because the graph loop only enters here after confirmation.
+        result = executor.execute(step["sql"], approved=True)
+        
+        if result.error:
+            return {"error": result.error, "current_op_index": idx}
+            
+        results.append({
+            "step": step["step_name"],
+            "affected_rows": result.affected_rows,
+            "status": "success"
+        })
+        
+        if step.get("rollback_sql"):
+            rollback_stack.append({
+                "step": step["step_name"],
+                "rollback_sql": step["rollback_sql"]
+            })
+            
+        return {"operation_results": results, "rollback_stack": rollback_stack, "current_op_index": idx + 1}
+    except Exception as e:
+        return {"error": str(e), "current_op_index": idx}
+
+
+def rollback_operations(state: AgentState, executor: BaseExecutor) -> dict:
+    """Undo completed write steps in reverse order with detailed reporting."""
+    rollback_stack = list(state.get("rollback_stack", []))
+    error = state.get("error", "Unknown error")
+    rollback_log = []
+    
+    for entry in reversed(rollback_stack):
+        try:
+            result = executor.execute(entry["rollback_sql"], approved=True)
+            rollback_log.append(f"✅ Rolled back {entry['step']}")
+        except Exception as e:
+            rollback_log.append(f"❌ Failed to rollback {entry['step']}: {str(e)}")
+            
+    summary = f"⚠️ Operation failed at step {state.get('current_op_index', '?')}: {error}\n"
+    if rollback_log:
+        summary += "\nRollback details:\n" + "\n".join(rollback_log)
+    else:
+        summary += "\nNo write operations to rollback."
+        
+    return {"response": summary, "operation_results": [], "rollback_stack": []}

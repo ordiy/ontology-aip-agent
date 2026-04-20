@@ -5,23 +5,43 @@
     xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
     xmlns:owl="http://www.w3.org/2002/07/owl#"
     xmlns:xsd="http://www.w3.org/2001/XMLSchema#"
-    xmlns:ont="http://example.org/ontology/financial-services/">
+    xmlns:ont="http://example.org/ontology/financial-services/"
+    xmlns:aip="http://aip.example.org/rules#">
 
     <owl:Ontology rdf:about="http://example.org/ontology/financial-services/">
         <rdfs:label>Financial Services</rdfs:label>
     </owl:Ontology>
+
+    <!-- aip: annotation property declarations -->
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#decisionRule"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#operationSteps"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#requiresApproval"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#rollbackable"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#overridable"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#severity"/>
 
     <owl:Class rdf:about="http://example.org/ontology/financial-services/Customer">
         <rdfs:label>Customer</rdfs:label>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/financial-services/Account">
         <rdfs:label>Account</rdfs:label>
+        <aip:decisionRule>IF status='active' AND balance &lt; 0 THEN recommend_freeze_account</aip:decisionRule>
+        <aip:operationSteps>1:verify_balance,2:notify_customer,3:update_account_status_to_frozen</aip:operationSteps>
+        <aip:requiresApproval>user</aip:requiresApproval>
+        <aip:severity>high</aip:severity>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/financial-services/Transaction">
         <rdfs:label>Transaction</rdfs:label>
+        <aip:decisionRule>IF amount > 10000 AND type='withdrawal' THEN recommend_fraud_investigation</aip:decisionRule>
+        <aip:operationSteps>1:flag_transaction,2:hold_funds,3:notify_compliance_officer</aip:operationSteps>
+        <aip:requiresApproval>admin</aip:requiresApproval>
+        <aip:severity>critical</aip:severity>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/financial-services/Loan">
         <rdfs:label>Loan</rdfs:label>
+        <aip:decisionRule>IF status='active' AND creditScore &lt; 500 THEN recommend_default_risk_review</aip:decisionRule>
+        <aip:operationSteps>1:assess_collateral,2:initiate_review_workflow</aip:operationSteps>
+        <aip:requiresApproval>user</aip:requiresApproval>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/financial-services/Investment">
         <rdfs:label>Investment</rdfs:label>

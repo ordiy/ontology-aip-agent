@@ -5,11 +5,20 @@
     xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
     xmlns:owl="http://www.w3.org/2002/07/owl#"
     xmlns:xsd="http://www.w3.org/2001/XMLSchema#"
-    xmlns:ont="http://example.org/ontology/healthcare-system/">
+    xmlns:ont="http://example.org/ontology/healthcare-system/"
+    xmlns:aip="http://aip.example.org/rules#">
 
     <owl:Ontology rdf:about="http://example.org/ontology/healthcare-system/">
         <rdfs:label>Healthcare System</rdfs:label>
     </owl:Ontology>
+
+    <!-- aip: annotation property declarations -->
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#decisionRule"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#operationSteps"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#requiresApproval"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#rollbackable"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#overridable"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#severity"/>
 
     <owl:Class rdf:about="http://example.org/ontology/healthcare-system/Patient">
         <rdfs:label>Patient</rdfs:label>
@@ -19,9 +28,15 @@
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/healthcare-system/Appointment">
         <rdfs:label>Appointment</rdfs:label>
+        <aip:decisionRule>IF status='scheduled' AND appointmentDate &lt; datetime('now') THEN recommend_mark_no_show</aip:decisionRule>
+        <aip:operationSteps>1:verify_attendance,2:update_status_to_no_show,3:notify_patient_reschedule</aip:operationSteps>
+        <aip:requiresApproval>auto</aip:requiresApproval>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/healthcare-system/Prescription">
         <rdfs:label>Prescription</rdfs:label>
+        <aip:decisionRule>IF prescribedDate &lt; date('now', '-1 year') THEN recommend_prescription_renewal_review</aip:decisionRule>
+        <aip:operationSteps>1:check_recent_vitals,2:schedule_doctor_consultation</aip:operationSteps>
+        <aip:requiresApproval>user</aip:requiresApproval>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/healthcare-system/MedicalRecord">
         <rdfs:label>MedicalRecord</rdfs:label>

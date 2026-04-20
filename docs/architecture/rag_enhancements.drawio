@@ -1,0 +1,250 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/27.0.9 Chrome/134.0.6998.205 Electron/35.4.0 Safari/537.36" version="27.0.9">
+  <diagram id="DynaSense-RAG-Enhance-v2" name="RAG Enhancements View">
+    <mxGraphModel dx="1644" dy="1246" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2600" pageHeight="1600" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="legend_box" value="LEGEND" style="swimlane;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;startSize=23;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="40" y="40" width="300" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_item1" value="🌟 DynaSense Specific&lt;br&gt;RAG Enhancements" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;align=center;" parent="legend_box" vertex="1">
+          <mxGeometry x="20" y="40" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="ingestion_layer" value="PHASE 1: ADVANCED KNOWLEDGE ACQUISITION (Dual-Track Ingestion)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#dae8fc;fontColor=#333333;strokeColor=#6c8ebf;startSize=23;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="40" y="180" width="2480" height="300" as="geometry" />
+        </mxCell>
+        <mxCell id="n_raw" value="Raw Documents&lt;br&gt;(PDF, DOCX, XLSX, Images)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;" parent="ingestion_layer" vertex="1">
+          <mxGeometry x="40" y="120" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_parse" value="🌟 Multi-modal Parsing&lt;br&gt;- PDF Tables → Markdown&lt;br&gt;- Images → Vision Captions&lt;br&gt;- OCR Fallback" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="ingestion_layer" vertex="1">
+          <mxGeometry x="280" y="100" width="220" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="n_chunk" value="Semantic Chunking&lt;br&gt;(Jina Segmenter)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;" parent="ingestion_layer" vertex="1">
+          <mxGeometry x="560" y="120" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_trip" value="🌟 LLM Triple Extraction&lt;br&gt;(Entity-Rel-Entity)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="ingestion_layer" vertex="1">
+          <mxGeometry x="800" y="50" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_vec" value="Dense Vectorization&lt;br&gt;(text-embedding-004)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;" parent="ingestion_layer" vertex="1">
+          <mxGeometry x="800" y="150" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="db_graph" value="🌟 Graph Knowledge Base&lt;br&gt;(Apache AGE / kg_triple)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="ingestion_layer" vertex="1">
+          <mxGeometry x="1100" y="40" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="db_pgvec" value="Vector Store (Child Chunks)&lt;br&gt;(pgvector)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#ffffff;strokeColor=#000000;" parent="ingestion_layer" vertex="1">
+          <mxGeometry x="1100" y="140" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="db_doc" value="🌟 Document Store (Parents)&lt;br&gt;Full Original Texts (JSONB)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="ingestion_layer" vertex="1">
+          <mxGeometry x="1400" y="140" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="retrieval_layer" value="PHASE 2: INTELLIGENT ROUTING &amp; MULTI-STRATEGY RETRIEVAL" style="swimlane;whiteSpace=wrap;html=1;fillColor=#d5e8d4;fontColor=#333333;strokeColor=#82b366;startSize=23;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="40" y="500" width="2480" height="340" as="geometry" />
+        </mxCell>
+        <mxCell id="n_query" value="User Query" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;" parent="retrieval_layer" vertex="1">
+          <mxGeometry x="40" y="140" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_llm_rewrite" value="🌟 LLM Query Understanding&lt;br&gt;(Intent Detection &amp; Contextualization)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="retrieval_layer" vertex="1">
+          <mxGeometry x="200" y="130" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_mem" value="🌟 Session Memory&lt;br&gt;w/ Topic Anchors" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="retrieval_layer" vertex="1">
+          <mxGeometry x="460" y="130" width="160" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_exp" value="🌟 Parallel Query Expansion&lt;br&gt;(LLM generates 2 rephrasings)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="retrieval_layer" vertex="1">
+          <mxGeometry x="660" y="130" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_route" value="🌟 Dynamic Hybrid Router&lt;br&gt;Decides optimal retrieval track&lt;br&gt;(VECTOR | GRAPH | HYBRID)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="retrieval_layer" vertex="1">
+          <mxGeometry x="900" y="100" width="240" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="n_s_graph" value="🌟 Graph Track&lt;br&gt;Constrained Cypher Templates" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="retrieval_layer" vertex="1">
+          <mxGeometry x="1200" y="40" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_s_vec" value="Vector Track&lt;br&gt;(Dense Similarity Search)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;" parent="retrieval_layer" vertex="1">
+          <mxGeometry x="1200" y="140" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_s_bm25" value="Sparse Track&lt;br&gt;(In-Memory BM25 Cache)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;" parent="retrieval_layer" vertex="1">
+          <mxGeometry x="1200" y="240" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_s2b" value="🌟 Small-to-Big Expansion&lt;br&gt;(Map matched Child Chunks&lt;br&gt;to Full Parent Documents)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="retrieval_layer" vertex="1">
+          <mxGeometry x="1460" y="140" width="220" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="fusion_layer" value="PHASE 3: FUSION, GRADING &amp; SYNTHESIS (High-Precision Generation)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#ffe6cc;fontColor=#333333;strokeColor=#d79b00;startSize=23;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="40" y="860" width="2480" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="n_fuse" value="🌟 Cross-Encoder Fusion&lt;br&gt;(Jina Reranker normalizes&lt;br&gt;Graph, Dense &amp; Sparse docs)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="fusion_layer" vertex="1">
+          <mxGeometry x="1720" y="60" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_mmr" value="🌟 MMR Diversity Filter&lt;br&gt;(Jaccard dedup)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="fusion_layer" vertex="1">
+          <mxGeometry x="1980" y="70" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_grade" value="🌟 Hallucination Grader&lt;br&gt;(Strict Factual vs Relaxed Analysis)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="fusion_layer" vertex="1">
+          <mxGeometry x="2180" y="60" width="160" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_gen" value="Synthesized Generation&lt;br&gt;w/ Traceable Citations" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontStyle=1" parent="fusion_layer" vertex="1">
+          <mxGeometry x="2380" y="60" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="eval_layer" value="PHASE 4: CONTINUOUS EVALUATION &amp; OBSERVABILITY" style="swimlane;whiteSpace=wrap;html=1;fillColor=#e1d5e7;fontColor=#333333;strokeColor=#9673a6;startSize=23;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="40" y="1080" width="2480" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="n_langsmith" value="Observability&lt;br&gt;(LangSmith Traces)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;" parent="eval_layer" vertex="1">
+          <mxGeometry x="900" y="60" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ragas" value="🌟 Automated Metrics Eval&lt;br&gt;(RAGAS: Recall@K, NDCG@K)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="eval_layer" vertex="1">
+          <mxGeometry x="1460" y="60" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_human" value="🌟 Production Feedback Loop&lt;br&gt;(Thumbs Up/Down to DB)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" parent="eval_layer" vertex="1">
+          <mxGeometry x="2160" y="60" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e_raw_parse" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" parent="1" source="n_raw" target="n_parse" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_parse_chunk" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" parent="1" source="n_parse" target="n_chunk" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_chunk_trip" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" parent="1" source="n_chunk" target="n_trip" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="760" y="300" />
+              <mxPoint x="760" y="230" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_chunk_vec" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" parent="1" source="n_chunk" target="n_vec" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="760" y="300" />
+              <mxPoint x="760" y="330" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_trip_graph" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" parent="1" source="n_trip" target="db_graph" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_vec_pgvec" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" parent="1" source="n_vec" target="db_pgvec" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_chunk_doc" value="Store Full Text" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;" parent="1" source="n_chunk" target="db_doc" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="640" y="440" />
+              <mxPoint x="1540" y="440" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_q_llm" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;" parent="1" source="n_query" target="n_llm_rewrite" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_llm_mem" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;" parent="1" source="n_llm_rewrite" target="n_mem" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_mem_exp" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;" parent="1" source="n_mem" target="n_exp" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_exp_route" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;" parent="1" source="n_exp" target="n_route" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_route_graph" value="GRAPH" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontStyle=1;" parent="1" source="n_route" target="n_s_graph" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1170" y="670" />
+              <mxPoint x="1170" y="570" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_route_vec" value="VECTOR" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontStyle=1;" parent="1" source="n_route" target="n_s_vec" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_route_hyb" value="HYBRID" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontStyle=1;" parent="1" source="n_route" target="n_s_bm25" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1170" y="670" />
+              <mxPoint x="1170" y="770" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_sgraph_db" value="Fetch Subgraphs" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;startArrow=classic;endArrow=none;" parent="1" source="db_graph" target="n_s_graph" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1240" y="500" />
+              <mxPoint x="1240" y="500" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_svec_db" value="K-NN Search" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;startArrow=classic;endArrow=none;" parent="1" source="db_pgvec" target="n_s_vec" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1240" y="640" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_svec_s2b" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" parent="1" source="n_s_vec" target="n_s2b" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_sbm25_s2b" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" parent="1" source="n_s_bm25" target="n_s2b" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1440" y="770" />
+              <mxPoint x="1440" y="690" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_s2b_dbdoc" value="Fetch Context" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;startArrow=classic;endArrow=none;" parent="1" source="db_doc" target="n_s2b" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1570" y="480" />
+              <mxPoint x="1570" y="640" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_sgraph_fuse" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" parent="1" source="n_s_graph" target="n_fuse" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1700" y="570" />
+              <mxPoint x="1700" y="960" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_s2b_fuse" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" parent="1" source="n_s2b" target="n_fuse" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1700" y="690" />
+              <mxPoint x="1700" y="960" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_fuse_mmr" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;" parent="1" source="n_fuse" target="n_mmr" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_mmr_grade" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;" parent="1" source="n_mmr" target="n_grade" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_grade_gen" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeWidth=2;" parent="1" source="n_grade" target="n_gen" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_log_ls" value="Log traces" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;fontColor=#b85450;strokeColor=#b85450;" parent="1" source="n_route" target="n_langsmith" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1020" y="820" />
+              <mxPoint x="1020" y="1080" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_ragas_eval" value="Run Metrics" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;fontColor=#b85450;strokeColor=#b85450;" parent="1" source="db_pgvec" target="n_ragas" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1300" y="440" />
+              <mxPoint x="1300" y="1140" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_user_fb" value="Feedback" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;fontColor=#b85450;strokeColor=#b85450;" parent="1" source="n_gen" target="n_human" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2440" y="1040" />
+              <mxPoint x="2260" y="1040" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

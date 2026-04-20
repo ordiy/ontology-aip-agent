@@ -1,0 +1,333 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/27.0.9 Chrome/134.0.6998.205 Electron/35.4.0 Safari/537.36" version="27.0.9">
+  <diagram id="DynaSense-RAG-Arch" name="DynaSense-RAG Architecture">
+    <mxGraphModel dx="1535" dy="1163" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="presentation_layer" value="PRESENTATION LAYER" style="swimlane;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;startSize=23;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="40" y="40" width="2200" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ui_portal" value="Customer Portal&lt;br&gt;(/demo, portal.html)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;" parent="presentation_layer" vertex="1">
+          <mxGeometry x="400" y="50" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ui_console" value="Engineer Console&lt;br&gt;(/, index.html)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;" parent="presentation_layer" vertex="1">
+          <mxGeometry x="1400" y="50" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="api_layer" value="API LAYER (FastAPI)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#dae8fc;fontColor=#333333;strokeColor=#6c8ebf;startSize=23;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="40" y="220" width="2200" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="n_api_ingest" value="Ingestion Router&lt;br&gt;(POST /api/upload)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cce5ff;strokeColor=#3664a3;" parent="api_layer" vertex="1">
+          <mxGeometry x="120" y="60" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_api_chat" value="Chat / Session Router&lt;br&gt;(SSE, Multi-turn, Multimodal)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cce5ff;strokeColor=#3664a3;" parent="api_layer" vertex="1">
+          <mxGeometry x="400" y="60" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_api_whatif" value="What-If Router&lt;br&gt;(Deterministic Tools)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cce5ff;strokeColor=#3664a3;" parent="api_layer" vertex="1">
+          <mxGeometry x="840" y="60" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_api_feedback" value="Feedback &amp; Eval Router&lt;br&gt;(Human Loop &amp; Metrics)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cce5ff;strokeColor=#3664a3;" parent="api_layer" vertex="1">
+          <mxGeometry x="1280" y="60" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_api_debug" value="Debug &amp; Analytics Router" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cce5ff;strokeColor=#3664a3;" parent="api_layer" vertex="1">
+          <mxGeometry x="1720" y="60" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="app_layer" value="APPLICATION / RAG PIPELINE LAYER" style="swimlane;whiteSpace=wrap;html=1;fillColor=#fff2cc;fontColor=#333333;strokeColor=#d6b656;startSize=23;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="40" y="440" width="2200" height="420" as="geometry" />
+        </mxCell>
+        <mxCell id="n_app_extract" value="Format Extraction&lt;br&gt;(PDF OCR, DOCX, XLSX, TXT)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffcccc;strokeColor=#b85450;" parent="app_layer" vertex="1">
+          <mxGeometry x="100" y="60" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_app_jina_seg" value="Jina Semantic Segmenter&lt;br&gt;(Chunking)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffcccc;strokeColor=#b85450;" parent="app_layer" vertex="1">
+          <mxGeometry x="120" y="180" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_app_triple_ext" value="Triple Extraction (LLM)&lt;br&gt;for Graph Ingestion" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffcccc;strokeColor=#b85450;" parent="app_layer" vertex="1">
+          <mxGeometry x="120" y="300" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_app_rag_core" value="RAG Core (LangGraph)&lt;br&gt;Vector Path" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" parent="app_layer" vertex="1">
+          <mxGeometry x="400" y="60" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_app_q_expand" value="Query Expansion&lt;br&gt;(LLM rephrasings)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="app_layer" vertex="1">
+          <mxGeometry x="400" y="180" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_app_hybrid" value="Hybrid RAG Router&lt;br&gt;(VECTOR / GRAPH / GLOBAL / HYBRID)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" parent="app_layer" vertex="1">
+          <mxGeometry x="660" y="60" width="260" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_app_graph_const" value="Graph Constrained Queries&lt;br&gt;(Cypher Templates)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="app_layer" vertex="1">
+          <mxGeometry x="660" y="180" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_app_fusion" value="Fusion Rerank (Jina)&lt;br&gt;&amp; MMR Diversity Filter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="app_layer" vertex="1">
+          <mxGeometry x="480" y="300" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_app_whatif_core" value="What-If Pipeline&lt;br&gt;(Deterministic Math Tools)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="app_layer" vertex="1">
+          <mxGeometry x="960" y="60" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_app_session_mem" value="Session Memory&lt;br&gt;(History Trimming &amp; Anchors)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="app_layer" vertex="1">
+          <mxGeometry x="1240" y="60" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_app_feedback_core" value="Feedback Loop &amp;&lt;br&gt;Recall Metrics (RAGAS)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="app_layer" vertex="1">
+          <mxGeometry x="1500" y="60" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="e_app_ext_seg" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=none;endArrow=classic;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="app_layer" source="n_app_extract" target="n_app_jina_seg" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_app_seg_triple" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=none;endArrow=classic;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="app_layer" source="n_app_jina_seg" target="n_app_triple_ext" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_app_rag_qexp" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;startArrow=none;endArrow=classic;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="app_layer" source="n_app_rag_core" target="n_app_q_expand" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_app_hybrid_graph" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;startArrow=none;endArrow=classic;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="app_layer" source="n_app_hybrid" target="n_app_graph_const" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_app_hybrid_fusion" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=none;endArrow=classic;exitX=0.1;exitY=1;entryX=0.75;entryY=0;" parent="app_layer" source="n_app_hybrid" target="n_app_fusion" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="686" y="270" />
+              <mxPoint x="645" y="270" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_app_rag_fusion" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=none;endArrow=classic;exitX=0.9;exitY=1;entryX=0.25;entryY=0;" parent="app_layer" source="n_app_rag_core" target="n_app_fusion" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="580" y="270" />
+              <mxPoint x="535" y="270" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="infra_layer" value="INFRASTRUCTURE &amp; STORAGE LAYER" style="swimlane;whiteSpace=wrap;html=1;fillColor=#e1d5e7;fontColor=#333333;strokeColor=#9673a6;startSize=23;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="40" y="900" width="2200" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="n_db_pg_pool" value="PostgreSQL Connection Pool" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1" parent="infra_layer" vertex="1">
+          <mxGeometry x="960" y="50" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_db_doc" value="Document Store&lt;br&gt;(JSONB kb_doc)&lt;br&gt;Parent/Child Texts" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#d5e8d4;strokeColor=#82b366;" parent="infra_layer" vertex="1">
+          <mxGeometry x="200" y="60" width="160" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="n_db_vec" value="Vector Store&lt;br&gt;(pgvector kb_embedding)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#d5e8d4;strokeColor=#82b366;" parent="infra_layer" vertex="1">
+          <mxGeometry x="600" y="60" width="180" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="n_db_graph" value="Graph Store&lt;br&gt;(Apache AGE / kg_triple)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#d5e8d4;strokeColor=#82b366;" parent="infra_layer" vertex="1">
+          <mxGeometry x="1360" y="60" width="160" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="n_db_feedback" value="Feedback Store&lt;br&gt;(feedback table)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#d5e8d4;strokeColor=#82b366;" parent="infra_layer" vertex="1">
+          <mxGeometry x="1720" y="60" width="140" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="external_layer" value="EXTERNAL SERVICES (Providers)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#d5e8d4;fontColor=#333333;strokeColor=#82b366;startSize=23;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="40" y="1140" width="2200" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ext_jina_seg" value="Jina Segment API&lt;br&gt;(segment.jina.ai)" style="ellipse;shape=cloud;whiteSpace=wrap;html=1;fillColor=#ffcccc;strokeColor=#b85450;" parent="external_layer" vertex="1">
+          <mxGeometry x="100" y="60" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ext_emb" value="Embedding Provider&lt;br&gt;(text-embedding-004)" style="ellipse;shape=cloud;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" parent="external_layer" vertex="1">
+          <mxGeometry x="400" y="60" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ext_jina_rerank" value="Jina Rerank API&lt;br&gt;(jina-reranker-v2)" style="ellipse;shape=cloud;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" parent="external_layer" vertex="1">
+          <mxGeometry x="700" y="60" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ext_llm" value="Inference Provider (LLM)&lt;br&gt;(Vertex AI / OpenAI / Anthropic)" style="ellipse;shape=cloud;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1" parent="external_layer" vertex="1">
+          <mxGeometry x="1000" y="60" width="220" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ext_langsmith" value="LangSmith&lt;br&gt;(Tracing &amp; Observability)" style="ellipse;shape=cloud;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="external_layer" vertex="1">
+          <mxGeometry x="1400" y="60" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ui_chat" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=none;endArrow=classic;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="n_ui_portal" target="n_api_chat" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_console_api" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=none;endArrow=classic;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="n_ui_console" target="n_api_debug" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_console_ingest" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=none;endArrow=classic;exitX=0.25;exitY=1;entryX=0.5;entryY=0;" parent="1" source="n_ui_console" target="n_api_ingest" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1440" y="180" />
+              <mxPoint x="210" y="180" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_api_ingest_app" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=none;endArrow=classic;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="n_api_ingest" target="n_app_extract" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_api_chat_rag" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=none;endArrow=classic;exitX=0.25;exitY=1;entryX=0.5;entryY=0;" parent="1" source="n_api_chat" target="n_app_rag_core" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_api_chat_hybrid" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=none;endArrow=classic;exitX=0.75;exitY=1;entryX=0.5;entryY=0;" parent="1" source="n_api_chat" target="n_app_hybrid" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="550" y="420" />
+              <mxPoint x="790" y="420" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_api_chat_mem" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;startArrow=none;endArrow=classic;exitX=0.9;exitY=1;entryX=0.5;entryY=0;" parent="1" source="n_api_chat" target="n_app_session_mem" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="580" y="400" />
+              <mxPoint x="1340" y="400" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_api_whatif_app" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=none;endArrow=classic;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="n_api_whatif" target="n_app_whatif_core" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="920" y="400" />
+              <mxPoint x="1050" y="400" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_api_feedback_app" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=none;endArrow=classic;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="n_api_feedback" target="n_app_feedback_core" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1370" y="420" />
+              <mxPoint x="1590" y="420" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_app_seg_doc" value="Write JSONB" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=none;endArrow=classic;exitX=0;exitY=0.5;entryX=0.5;entryY=0;" parent="1" source="n_app_jina_seg" target="n_db_doc" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="80" y="650" />
+              <mxPoint x="80" y="880" />
+              <mxPoint x="280" y="880" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_app_seg_vec" value="Write Vectors" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=none;endArrow=classic;exitX=1;exitY=0.5;entryX=0.25;entryY=0;" parent="1" source="n_app_jina_seg" target="n_db_vec" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="360" y="650" />
+              <mxPoint x="360" y="880" />
+              <mxPoint x="645" y="880" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_app_triple_graph" value="Merge Triples" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=none;endArrow=classic;exitX=1;exitY=0.5;entryX=0.25;entryY=0;" parent="1" source="n_app_triple_ext" target="n_db_graph" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="380" y="770" />
+              <mxPoint x="380" y="860" />
+              <mxPoint x="1400" y="860" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_app_rag_doc" value="Small-to-Big" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=classic;endArrow=none;exitX=0;exitY=0.5;entryX=0.75;entryY=0;" parent="1" source="n_app_rag_core" target="n_db_doc" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="320" y="540" />
+              <mxPoint x="320" y="880" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_app_rag_vec" value="pgvector search" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=classic;endArrow=none;exitX=0.75;exitY=1;entryX=0.75;entryY=0;" parent="1" source="n_app_rag_core" target="n_db_vec" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="590" y="880" />
+              <mxPoint x="735" y="880" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_app_graph_db" value="Cypher Queries" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=classic;endArrow=classic;exitX=0.75;exitY=1;entryX=0.75;entryY=0;" parent="1" source="n_app_graph_const" target="n_db_graph" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="850" y="860" />
+              <mxPoint x="1480" y="860" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_app_feedback_db" value="Persist" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=none;endArrow=classic;exitX=0.75;exitY=1;entryX=0.5;entryY=0;" parent="1" source="n_app_feedback_core" target="n_db_feedback" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1675" y="880" />
+              <mxPoint x="1790" y="880" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_app_seg_ext" value="Segment API" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;startArrow=none;endArrow=classic;exitX=0.1;exitY=1;entryX=0.5;entryY=0;" parent="1" source="n_app_jina_seg" target="n_ext_jina_seg" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="178" y="880" />
+              <mxPoint x="190" y="880" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_app_triple_llm" value="LLM Extract" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;startArrow=none;endArrow=classic;exitX=0.75;exitY=1;entryX=0.1;entryY=0;" parent="1" source="n_app_triple_ext" target="n_ext_llm" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="295" y="860" />
+              <mxPoint x="1022" y="860" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_app_rag_llm" value="LLM Gen" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;startArrow=none;endArrow=classic;exitX=0;exitY=0.25;entryX=0.5;entryY=0;" parent="1" source="n_app_rag_core" target="n_ext_llm" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="340" y="520" />
+              <mxPoint x="340" y="860" />
+              <mxPoint x="1110" y="860" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_app_qexp_llm" value="LLM Expand" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;startArrow=none;endArrow=classic;exitX=0;exitY=0.25;entryX=0.25;entryY=0;" parent="1" source="n_app_q_expand" target="n_ext_llm" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="380" y="635" />
+              <mxPoint x="380" y="860" />
+              <mxPoint x="1055" y="860" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_app_hybrid_llm" value="LLM Route" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;startArrow=none;endArrow=classic;exitX=0.9;exitY=1;entryX=0.75;entryY=0;" parent="1" source="n_app_hybrid" target="n_ext_llm" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="894" y="860" />
+              <mxPoint x="1165" y="860" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_app_rag_emb" value="Vectorize" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;startArrow=none;endArrow=classic;exitX=1;exitY=0.5;entryX=0.5;entryY=0;" parent="1" source="n_app_rag_core" target="n_ext_emb" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="620" y="540" />
+              <mxPoint x="620" y="860" />
+              <mxPoint x="490" y="860" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_app_fusion_rerank" value="Rerank API" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;startArrow=none;endArrow=classic;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="n_app_fusion" target="n_ext_jina_rerank" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="630" y="860" />
+              <mxPoint x="790" y="860" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_trace_rag" value="Trace" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;fontColor=#6c8ebf;strokeColor=#6c8ebf;startArrow=none;endArrow=classic;exitX=1;exitY=0.25;entryX=0.25;entryY=0;" parent="1" source="n_app_rag_core" target="n_ext_langsmith" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1000" y="520" />
+              <mxPoint x="1000" y="860" />
+              <mxPoint x="1445" y="860" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_trace_hybrid" value="Trace" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;fontColor=#6c8ebf;strokeColor=#6c8ebf;startArrow=none;endArrow=classic;exitX=1;exitY=0.25;entryX=0.5;entryY=0;" parent="1" source="n_app_hybrid" target="n_ext_langsmith" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1100" y="520" />
+              <mxPoint x="1100" y="860" />
+              <mxPoint x="1490" y="860" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_trace_feedback" value="Eval" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;fontColor=#6c8ebf;strokeColor=#6c8ebf;startArrow=none;endArrow=classic;exitX=0.25;exitY=1;entryX=0.75;entryY=0;" parent="1" source="n_app_feedback_core" target="n_ext_langsmith" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1585" y="860" />
+              <mxPoint x="1535" y="860" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

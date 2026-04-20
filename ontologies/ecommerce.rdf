@@ -5,12 +5,21 @@
     xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
     xmlns:owl="http://www.w3.org/2002/07/owl#"
     xmlns:xsd="http://www.w3.org/2001/XMLSchema#"
-    xmlns:ont="http://example.org/ontology/e-commerce-platform/">
+    xmlns:ont="http://example.org/ontology/e-commerce-platform/"
+    xmlns:aip="http://aip.example.org/rules#">
 
     <owl:Ontology rdf:about="http://example.org/ontology/e-commerce-platform/">
         <rdfs:label>E-Commerce Platform</rdfs:label>
         <rdfs:comment>Online retail business model with customers, products, and orders</rdfs:comment>
     </owl:Ontology>
+
+    <!-- aip: annotation property declarations -->
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#decisionRule"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#operationSteps"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#requiresApproval"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#rollbackable"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#overridable"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#severity"/>
 
     <!-- ===================== -->
     <!-- Entity Types (Classes) -->
@@ -21,6 +30,9 @@
         <rdfs:comment>Registered customer who makes purchases</rdfs:comment>
         <ont:icon>🛒</ont:icon>
         <ont:color>#0078D4</ont:color>
+        <aip:decisionRule>IF totalSpent > 1000 AND loyaltyTier='Standard' THEN recommend_tier_upgrade</aip:decisionRule>
+        <aip:operationSteps>1:calculate_spend_index,2:evaluate_tier_potential,3:update_loyalty_tier</aip:operationSteps>
+        <aip:requiresApproval>user</aip:requiresApproval>
     </owl:Class>
 
     <owl:Class rdf:about="http://example.org/ontology/e-commerce-platform/Product">
@@ -28,6 +40,9 @@
         <rdfs:comment>Item available for purchase</rdfs:comment>
         <ont:icon>📦</ont:icon>
         <ont:color>#107C10</ont:color>
+        <aip:decisionRule>IF stockQty &lt; 5 THEN recommend_restock</aip:decisionRule>
+        <aip:operationSteps>1:check_supplier_availability,2:create_purchase_order,3:update_stock_flag</aip:operationSteps>
+        <aip:requiresApproval>auto</aip:requiresApproval>
     </owl:Class>
 
     <owl:Class rdf:about="http://example.org/ontology/e-commerce-platform/Cart">
@@ -41,6 +56,9 @@
         <rdfs:label>Order</rdfs:label>
         <rdfs:comment>Completed purchase transaction</rdfs:comment>
         <ont:icon>📋</ont:icon>
+        <aip:decisionRule>IF status='pending_payment' AND orderDate &lt; datetime('now', '-3 days') THEN recommend_cancel_unpaid</aip:decisionRule>
+        <aip:operationSteps>1:verify_payment_status,2:notify_buyer,3:cancel_order,4:release_stock</aip:operationSteps>
+        <aip:requiresApproval>user</aip:requiresApproval>
         <ont:color>#8764B8</ont:color>
     </owl:Class>
 

@@ -1,0 +1,182 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/27.0.9 Chrome/134.0.6998.205 Electron/35.4.0 Safari/537.36" version="27.0.9">
+  <diagram id="R2lEEEUBdFMjLlhIrx00" name="Architecture">
+    <mxGraphModel dx="1359" dy="1026" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="ingestion_box" value="DATA INGESTION PIPELINE" style="swimlane;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;startSize=23;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="30" y="30" width="2050" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="n_raw" value="Raw Documents&lt;br&gt;(PDF, DOCX, XLSX, TXT, MD)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="ingestion_box" vertex="1">
+          <mxGeometry x="60" y="70" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ext" value="Format Extraction&lt;br&gt;- PDF: text, OCR, Tables, Images&lt;br&gt;- DOCX: paras + tables&lt;br&gt;- XLSX: sheets&lt;br&gt;- TXT/MD: UTF-8" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=10;" parent="ingestion_box" vertex="1">
+          <mxGeometry x="260" y="60" width="200" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_seg" value="Jina Semantic Segmenter&lt;br&gt;(Chunking)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="ingestion_box" vertex="1">
+          <mxGeometry x="500" y="70" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e_raw_ext" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" parent="ingestion_box" source="n_raw" target="n_ext" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ext_seg" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" parent="ingestion_box" source="n_ext" target="n_seg" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="storage_box" value="SHARED STORAGE &amp; EXTERNAL SERVICES" style="swimlane;whiteSpace=wrap;html=1;fillColor=#e1d5e7;fontColor=#333333;strokeColor=#9673a6;startSize=23;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="30" y="260" width="2050" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="n_llm_api_qexp" value="LLM API&lt;br&gt;(For Rephrasing)" style="ellipse;shape=cloud;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" parent="storage_box" vertex="1">
+          <mxGeometry x="260" y="60" width="160" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_docdb" value="Document Store&lt;br&gt;(PostgreSQL JSONB)&lt;br&gt;Stores: full parent text" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#d5e8d4;strokeColor=#82b366;" parent="storage_box" vertex="1">
+          <mxGeometry x="510" y="60" width="140" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_emb_api" value="Vertex AI Embeddings&lt;br&gt;(text-embedding-004)" style="ellipse;shape=cloud;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="storage_box" vertex="1">
+          <mxGeometry x="720" y="60" width="160" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_vecdb" value="Vector DB (pgvector)&lt;br&gt;Stores: dense vectors" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#d5e8d4;strokeColor=#82b366;" parent="storage_box" vertex="1">
+          <mxGeometry x="960" y="60" width="140" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_jina_api" value="Jina Rerank API&lt;br&gt;(jina-reranker-v2)" style="ellipse;shape=cloud;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="storage_box" vertex="1">
+          <mxGeometry x="1200" y="60" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_llm_api" value="LLM API (Gemini)&lt;br&gt;Generation &amp; Reasoning" style="ellipse;shape=cloud;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" parent="storage_box" vertex="1">
+          <mxGeometry x="1650" y="60" width="180" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="retrieval_box" value="RETRIEVAL &amp; GENERATION PIPELINE" style="swimlane;whiteSpace=wrap;html=1;fillColor=#fff2cc;fontColor=#333333;strokeColor=#d6b656;startSize=23;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="30" y="490" width="2050" height="420" as="geometry" />
+        </mxCell>
+        <mxCell id="n_user" value="User Client" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" parent="retrieval_box" vertex="1">
+          <mxGeometry x="60" y="160" width="40" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_mem" value="Session Memory&lt;br&gt;(conversation_id, budget)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#d5e8d4;strokeColor=#82b366;" parent="retrieval_box" vertex="1">
+          <mxGeometry x="260" y="40" width="160" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="n_qexp" value="Query Expansion&lt;br&gt;(LLM 2 rephrasings)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" parent="retrieval_box" vertex="1">
+          <mxGeometry x="260" y="170" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_search" value="pgvector similarity search&lt;br&gt;(Top K=10 child chunks)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="retrieval_box" vertex="1">
+          <mxGeometry x="480" y="170" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_s2b" value="Small-to-Big Expansion&lt;br&gt;(child_id -&gt; parent_id)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="retrieval_box" vertex="1">
+          <mxGeometry x="720" y="170" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_rerank" value="Jina Cross-Encoder Reranker&lt;br&gt;(Top K=3-5 parent docs)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="retrieval_box" vertex="1">
+          <mxGeometry x="1200" y="170" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_mmr" value="MMR Diversity Filter&lt;br&gt;(Jaccard dedup lambda=0.7)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="retrieval_box" vertex="1">
+          <mxGeometry x="1420" y="170" width="180" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="n_type" value="Query Type Detector&lt;br&gt;(_is_analysis_query)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" parent="retrieval_box" vertex="1">
+          <mxGeometry x="1640" y="160" width="160" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="n_fact" value="Factual Query&lt;br&gt;&lt;br&gt;&lt;b&gt;GRADE_PROMPT&lt;/b&gt;: Direct answer?&lt;br&gt;YES -&gt; &lt;b&gt;GEN_PROMPT&lt;/b&gt;&lt;br&gt;NO -&gt; Fallback" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=10;" parent="retrieval_box" vertex="1">
+          <mxGeometry x="1820" y="50" width="210" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="n_anal" value="Analysis Query&lt;br&gt;&lt;br&gt;&lt;b&gt;GRADE_ANALYSIS&lt;/b&gt;: Any background fact?&lt;br&gt;YES -&gt; &lt;b&gt;GEN_ANALYSIS&lt;/b&gt;&lt;br&gt;NO -&gt; Fallback" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=10;" parent="retrieval_box" vertex="1">
+          <mxGeometry x="1820" y="260" width="210" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ans" value="Final Synthesized Answer" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1" parent="retrieval_box" vertex="1">
+          <mxGeometry x="1940" y="440" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e_user_req" value="1. Request" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontStyle=1;strokeWidth=2;" parent="retrieval_box" source="n_user" target="n_qexp" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_mem_qexp" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;" parent="retrieval_box" source="n_mem" target="n_qexp" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_qexp_search" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" parent="retrieval_box" source="n_qexp" target="n_search" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_search_s2b" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" parent="retrieval_box" source="n_search" target="n_s2b" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_s2b_rerank" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" parent="retrieval_box" source="n_s2b" target="n_rerank" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_rerank_mmr" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" parent="retrieval_box" source="n_rerank" target="n_mmr" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_mmr_type" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" parent="retrieval_box" source="n_mmr" target="n_type" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_type_fact" value="Factual" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" parent="retrieval_box" source="n_type" target="n_fact" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_type_anal" value="Analysis" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" parent="retrieval_box" source="n_type" target="n_anal" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_fact_ans" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" parent="retrieval_box" source="n_fact" target="n_ans" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_anal_ans" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" parent="retrieval_box" source="n_anal" target="n_ans" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="monitoring_box" value="OBSERVABILITY &amp; LOGGING" style="swimlane;whiteSpace=wrap;html=1;fillColor=#ffe6cc;fontColor=#333333;strokeColor=#d79b00;startSize=23;fontStyle=1" parent="1" vertex="1">
+          <mxGeometry x="30" y="940" width="2050" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="n_langsmith" value="LangSmith&lt;br&gt;Agent Execute Logs &amp; Traces" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1" parent="monitoring_box" vertex="1">
+          <mxGeometry x="1200" y="50" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ans_user" value="8. Response" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;fontStyle=1;strokeWidth=2;" parent="1" source="n_ans" target="n_user" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1990" y="1120" />
+              <mxPoint x="80" y="1120" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_seg_docdb" value="Write Parent Text" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;entryX=0.5;entryY=0;exitX=0.5;exitY=1;" parent="1" source="n_seg" target="n_docdb" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_seg_emb" value="Vectorize" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;entryX=0.25;entryY=0;exitX=0.75;exitY=1;" parent="1" source="n_seg" target="n_emb_api" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_emb_vecdb" value="Write Vectors" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;entryX=0.5;entryY=0;exitX=0.5;exitY=1;" parent="1" source="n_emb_api" target="n_vecdb" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_search_vecdb" value="Query &amp; Fetch K=10" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=classic;endArrow=classic;exitX=0.75;exitY=0;entryX=0.5;entryY=1;" parent="1" source="n_search" target="n_vecdb" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_s2b_docdb" value="Fetch Parent Text" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=classic;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" parent="1" source="n_s2b" target="n_docdb" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="840" y="580" />
+              <mxPoint x="610" y="580" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_qexp_api" value="Expand Query" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;startArrow=classic;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" parent="1" source="n_qexp" target="n_llm_api_qexp" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_search_emb" value="Text to Vector" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=classic;endArrow=classic;entryX=0.1;entryY=1;exitX=0;exitY=0;exitDx=0;exitDy=0;" parent="1" source="n_search" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="530" y="650" as="sourcePoint" />
+            <mxPoint x="780.2494285118701" y="389.32443389993364" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_rerank_api" value="Rerank Request" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;startArrow=classic;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" parent="1" source="n_rerank" target="n_jina_api" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_fact_api" value="Generate" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;startArrow=none;endArrow=classic;exitX=0.5;exitY=0;entryX=0.25;entryY=1;" parent="1" source="n_fact" target="n_llm_api" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_anal_api" value="Generate" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;startArrow=none;endArrow=classic;exitX=0.5;exitY=0;entryX=0.75;entryY=1;" parent="1" source="n_anal" target="n_llm_api" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_trace_qexp" value="Trace" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;fontColor=#b85450;strokeColor=#b85450;exitX=0.5;exitY=1;entryX=0.05;entryY=0;" parent="1" source="n_qexp" target="n_langsmith" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_trace_type" value="Trace" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;fontColor=#b85450;strokeColor=#b85450;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="n_type" target="n_langsmith" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_trace_fact" value="Trace" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;fontColor=#b85450;strokeColor=#b85450;exitX=0.5;exitY=1;entryX=0.85;entryY=0;" parent="1" source="n_fact" target="n_langsmith" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_trace_anal" value="Trace" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;fontColor=#b85450;strokeColor=#b85450;exitX=0.5;exitY=1;entryX=0.95;entryY=0;" parent="1" source="n_anal" target="n_langsmith" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

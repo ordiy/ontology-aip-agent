@@ -5,23 +5,41 @@
     xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
     xmlns:owl="http://www.w3.org/2002/07/owl#"
     xmlns:xsd="http://www.w3.org/2001/XMLSchema#"
-    xmlns:ont="http://example.org/ontology/manufacturing-plant/">
+    xmlns:ont="http://example.org/ontology/manufacturing-plant/"
+    xmlns:aip="http://aip.example.org/rules#">
 
     <owl:Ontology rdf:about="http://example.org/ontology/manufacturing-plant/">
         <rdfs:label>Manufacturing Plant</rdfs:label>
     </owl:Ontology>
+
+    <!-- aip: annotation property declarations -->
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#decisionRule"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#operationSteps"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#requiresApproval"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#rollbackable"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#overridable"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#severity"/>
 
     <owl:Class rdf:about="http://example.org/ontology/manufacturing-plant/Product">
         <rdfs:label>Product</rdfs:label>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/manufacturing-plant/WorkOrder">
         <rdfs:label>WorkOrder</rdfs:label>
+        <aip:decisionRule>IF status='pending' AND startDate &lt; date('now') THEN recommend_expedite_order</aip:decisionRule>
+        <aip:operationSteps>1:check_resource_capacity,2:prioritize_in_queue,3:notify_supervisor</aip:operationSteps>
+        <aip:requiresApproval>user</aip:requiresApproval>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/manufacturing-plant/Machine">
         <rdfs:label>Machine</rdfs:label>
+        <aip:decisionRule>IF lastMaintenance &lt; date('now', '-3 months') OR status='warning' THEN recommend_preventive_maintenance</aip:decisionRule>
+        <aip:operationSteps>1:check_spare_parts,2:schedule_technician,3:create_maintenance_log</aip:operationSteps>
+        <aip:requiresApproval>auto</aip:requiresApproval>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/manufacturing-plant/Material">
         <rdfs:label>Material</rdfs:label>
+        <aip:decisionRule>IF stockQty &lt; 100 THEN recommend_reorder_raw_material</aip:decisionRule>
+        <aip:operationSteps>1:select_best_supplier,2:issue_purchase_request,3:update_inventory_status</aip:operationSteps>
+        <aip:requiresApproval>auto</aip:requiresApproval>
     </owl:Class>
     <owl:Class rdf:about="http://example.org/ontology/manufacturing-plant/Supplier">
         <rdfs:label>Supplier</rdfs:label>

@@ -77,7 +77,7 @@ def _initialize_domain(domain_name: str, ontologies: dict, config: dict, llm) ->
     executor = SQLExecutor(db_path, config["permissions"])
     agent = build_graph(llm, executor, ontology_context)
 
-    return schema, db_path, class_to_table, ontology_context, agent
+    return schema, db_path, class_to_table, ontology_context, agent, schema.rules
 
 
 def _handle_system_command(cmd: str, schema, class_to_table: dict, db_path: str, ontologies: dict = None, config: dict = None, llm = None, history: list = None):
@@ -235,7 +235,7 @@ def main():
         )
         console.print(f"[cyan]Using Vertex AI: {config['llm']['model']}[/cyan]")
 
-    schema, db_path, class_to_table, ontology_context, agent = _initialize_domain(
+    schema, db_path, class_to_table, ontology_context, agent, rdf_rules = _initialize_domain(
         domain_name, ontologies, config, llm
     )
 
@@ -266,7 +266,7 @@ def main():
                 if "switch_to" in result:
                     new_domain = result["switch_to"]
                     console.print(f"[cyan]Switching to domain: {new_domain}...[/cyan]")
-                    schema, db_path, class_to_table, ontology_context, agent = _initialize_domain(
+                    schema, db_path, class_to_table, ontology_context, agent, rdf_rules = _initialize_domain(
                         new_domain, ontologies, config, llm
                     )
                     domain_name = new_domain
@@ -299,6 +299,13 @@ def main():
             "analysis_plan": [],
             "sub_results": [],
             "conversation_history": _llm_context_history,
+            "rdf_rules": rdf_rules,
+            "user_overrides": {},
+            "decision": {},
+            "operation_plan": [],
+            "operation_results": [],
+            "rollback_stack": [],
+            "current_op_index": 0,
         }
 
         result = agent.invoke(initial_state)
@@ -306,6 +313,46 @@ def main():
         # Show intent
         if result.get("intent"):
             console.print(f"[dim]Intent: {result['intent']}[/dim]")
+
+        # Pattern D: Show override info
+        overrides = result.get("user_overrides")
+        if overrides and (overrides.get("skip_steps") or overrides.get("override_rules")):
+            console.print("[yellow]Applied Overrides:[/yellow]")
+            if overrides.get("skip_steps"):
+                console.print(f"  [dim]Skip Steps:[/dim] {', '.join(overrides['skip_steps'])}")
+            if overrides.get("override_rules"):
+                console.print(f"  [dim]Rules:[/dim] {', '.join(overrides['override_rules'])}")
+
+        # Pattern D: Show Decision
+        if result.get("intent") == "DECIDE" and result.get("decision"):
+            decision = result["decision"]
+            console.print(f"\n[bold cyan]📊 {decision.get('decision', 'Decision').upper()}[/bold cyan]")
+            console.print(f"Reasoning: {decision.get('reasoning')}")
+            
+            affected = decision.get("affected_entities", [])
+            if affected:
+                console.print(f"[green]Affected IDs:[/green] {', '.join(map(str, affected))}")
+                
+            excluded = decision.get("excluded_entities", [])
+            if excluded:
+                console.print(f"[dim]Excluded:[/dim] {len(excluded)} entities")
+
+            # Wait for approval if required
+            if decision.get("requires_approval") and result.get("approved") is None:
+                if Confirm.ask("\nExecute this decision?", default=False):
+                    result["approved"] = True
+                    # Re-invoke to continue to plan_operation
+                    result = agent.invoke(result)
+                else:
+                    console.print("[dim]Cancelled.[/dim]")
+                    continue
+
+        # Pattern D: Show Operation Plan and Progress
+        if result.get("operation_plan"):
+            console.print("\n[bold]⚙️  Operation Plan:[/bold]")
+            for step in result["operation_plan"]:
+                status = "[green]✓[/green]" if not step.get("skipped") else "[dim]→[/dim]"
+                console.print(f"  {status} {step['step_name']}: {step['description']}")
 
         # Show analysis steps for ANALYZE intent
         if result.get("intent") == "ANALYZE" and result.get("sub_results"):
@@ -319,8 +366,8 @@ def main():
         if result.get("generated_sql"):
             console.print(Syntax(result["generated_sql"], "sql", theme="monokai"))
 
-        # Handle approval if needed
-        if result.get("approved") is None and result.get("permission_level") == "confirm":
+        # Handle approval if needed for simple WRITE
+        if result.get("intent") == "WRITE" and result.get("approved") is None and result.get("permission_level") == "confirm":
             console.print(f"\n[yellow]This is a {result['intent']} operation.[/yellow]")
             if Confirm.ask("Execute?", default=False):
                 result["approved"] = True
