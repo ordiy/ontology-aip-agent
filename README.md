@@ -107,6 +107,80 @@ ollama:
 
 ---
 
+## Design Philosophy — Why Ontology?
+
+This project was born from exploring what makes Palantir AIP fundamentally different from traditional data tools. The key insight is how the two paradigms treat **relationships between data**.
+
+### Traditional ETL vs. Palantir Ontology
+
+**Traditional ETL thinking:**
+```
+Raw data → Clean & transform → Write to target table → Query
+          (relationships are physically pre-baked into the schema)
+```
+
+**Palantir Ontology thinking:**
+```
+Raw data ──map──► Semantic layer (Ontology) ──► Query / AI Action
+                  (relationships are defined dynamically in the
+                   semantic layer; source data never moves)
+```
+
+The Ontology layer defines:
+
+| Concept | Description | Example |
+|---------|-------------|---------|
+| **Object Type** | Domain entities (like classes) | `Employee`, `Contract`, `Patent` |
+| **Property** | Maps to a column in a source table | `Employee.name → hr_table.full_name` |
+| **Link Type** | Virtual associations across any data source | `Employee → WORKS_ON → Project` |
+| **Action** | Operations that can act on objects | `approve_contract(Contract)` |
+
+### ETL vs. Ontology — Comparison
+
+|  | Traditional ETL | Palantir Ontology |
+|--|-----------------|-------------------|
+| **Pre-processing required** | Physical data cleaning and merging | Semantic mapping (still needs to be defined) |
+| **Cost of changing a relationship** | Re-run the pipeline | Edit the Ontology definition (low cost) |
+| **Does data move?** | Yes — written to new tables | No — virtual queries over source data |
+| **Flexibility** | Low (schema is fixed) | High (semantic layer can be extended anytime) |
+| **Who defines relationships?** | Data engineers | Business analysts / domain experts |
+
+> **The prerequisite that doesn't go away:** You still need someone to do "semantic mapping" — telling the system that `hr_table.emp_id` corresponds to which property of the `Employee` object. The work shifts from *running ETL pipelines* to *configuring the Ontology*, but it doesn't disappear. The barrier is much lower and changes are instant.
+
+### The Deeper Architectural Insight
+
+Palantir's real breakthrough is **elevating relationships to first-class citizens, decoupled from physical storage**:
+
+```
+Traditional:  relationship = foreign key / JOIN  (lives in the physical data layer)
+Ontology:     relationship = Link Type           (lives in the semantic layer, spans any data source)
+```
+
+Example — three completely separate source systems, unified in the Ontology:
+
+```
+Employee (from HR system)
+  └─ INVENTED ──► Patent    (from patent database)
+  └─ SIGNED   ──► Contract  (from contract management system)
+```
+
+These three data sources may never be physically merged. The Ontology connects them at the semantic layer, and AIP's LLM can reason directly over that unified view.
+
+This is essentially the convergence of **data virtualization + knowledge graph + AI Action** — an engineering realization of what the academic Semantic Web (RDF/OWL) envisioned.
+
+### How This Project Implements These Principles
+
+| Palantir Concept | This Project's Implementation |
+|------------------|-------------------------------|
+| Object Type | `owl:Class` in RDF files → SQLite table |
+| Property | `owl:DatatypeProperty` → table column |
+| Link Type | `owl:ObjectProperty` → foreign key / junction table |
+| Action | WRITE intent → permission-gated SQL execution |
+| Semantic layer | `src/ontology/parser.py` + `src/ontology/context.py` |
+| AI reasoning over Ontology | LangGraph agent + LLM SQL generation from ontology context |
+
+---
+
 ## Architecture
 
 ```
