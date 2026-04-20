@@ -27,7 +27,83 @@ A [Palantir AIP](https://www.palantir.com/platforms/aip/)-style data agent that 
 | Ontology-aware | Domain semantics come from OWL/RDF files — the agent understands entity types, properties, and relationships without hard-coding any schema |
 | Permission-gated writes | READ queries run automatically; WRITE/DELETE require user confirmation; DDL (DROP/ALTER) is denied |
 | Multi-step analysis | Complex questions are decomposed into sub-queries, each executed independently, then synthesized into a unified answer |
-| Pluggable LLM backend | Vertex AI Gemini (default) or local Ollama — swap via `config.yaml`, no code changes |
+| Pluggable LLM backend | Vertex AI Gemini, OpenAI, OpenRouter, or local Ollama — swap via `config.yaml`, no code changes |
+
+---
+
+## LLM Providers
+
+The agent abstracts all LLM calls behind a single `LLMClient` protocol. Four providers are supported out of the box:
+
+| Provider | Key | Best for |
+|----------|-----|----------|
+| **Vertex AI Gemini** | GCP service account | Production on GCP; Gemini 2.x / 3.x models |
+| **OpenRouter** | `OPENROUTER_API_KEY` | Access to 200+ models (Claude, GPT-4o, Llama, Gemini, Mistral…) under one key |
+| **OpenAI** | `OPENAI_API_KEY` | GPT-4o, o1, o3-mini directly from OpenAI |
+| **Ollama** | none | Fully local, air-gapped; open-source models (Llama 3, Qwen, Mistral…) |
+
+### OpenRouter
+
+[OpenRouter](https://openrouter.ai) is an OpenAI-compatible gateway that routes to 200+ model providers. It's the easiest way to experiment with different model families without managing separate API keys.
+
+```yaml
+# config.local.yaml  (gitignored — never commit API keys)
+llm:
+  provider: openrouter
+
+openrouter:
+  api_key: "sk-or-v1-..."          # https://openrouter.ai/keys
+  model: anthropic/claude-3.5-sonnet  # or any model at openrouter.ai/models
+  app_name: ontology-aip-agent
+```
+
+Popular OpenRouter model IDs:
+
+| Model | ID |
+|-------|----|
+| Claude 3.5 Sonnet | `anthropic/claude-3.5-sonnet` |
+| GPT-4o | `openai/gpt-4o` |
+| Gemini 2.0 Flash | `google/gemini-2.0-flash-exp` |
+| Llama 3.3 70B | `meta-llama/llama-3.3-70b-instruct` |
+| Mistral Large | `mistralai/mistral-large` |
+| DeepSeek V3 | `deepseek/deepseek-chat` |
+
+### OpenAI
+
+```yaml
+llm:
+  provider: openai
+
+openai:
+  api_key: "sk-..."                # https://platform.openai.com/api-keys
+  model: gpt-4o                    # or gpt-4o-mini, o1, o3-mini, etc.
+```
+
+### Vertex AI Gemini
+
+```yaml
+llm:
+  provider: vertex
+  model: gemini-3.1-pro-preview
+
+vertex:
+  project: YOUR_GCP_PROJECT_ID
+  location: global
+  credentials: /path/to/service-account.json
+```
+
+### Ollama (local)
+
+```yaml
+llm:
+  provider: ollama
+  model: llama3                    # must be pulled: ollama pull llama3
+
+ollama:
+  host: http://localhost:11434
+```
+
+> **Security:** Never commit API keys. Use `config.local.yaml` (gitignored) or environment variables — see [Configuration Reference](#configuration-reference).
 
 ---
 
@@ -55,11 +131,16 @@ A [Palantir AIP](https://www.palantir.com/platforms/aip/)-style data agent that 
 └──────┬────────────────────┬────────────────────┬────────────┘
        │                    │                    │
        ▼                    ▼                    ▼
-┌─────────────┐   ┌──────────────────┐  ┌──────────────────┐
-│  Ontology   │   │   LLM Client     │  │  SQL Executor    │
-│  Store      │   │  (Vertex Gemini  │  │  (SQLite)        │
-│  (RDF/OWL)  │   │   or Ollama)     │  │  + Permission    │
-└─────────────┘   └──────────────────┘  └──────────────────┘
+┌─────────────┐   ┌──────────────────────────────────────┐  ┌──────────────────┐
+│  Ontology   │   │   LLM Client (pluggable)              │  │  SQL Executor    │
+│  Store      │   │  ┌──────────┐  ┌──────────────────┐  │  │  (SQLite)        │
+│  (RDF/OWL)  │   │  │ Vertex AI│  │ OpenAI-compatible│  │  │  + Permission    │
+└─────────────┘   │  │  Gemini  │  │ OpenAI/OpenRouter│  │  └──────────────────┘
+                  │  └──────────┘  └──────────────────┘  │
+                  │  ┌──────────┐                         │
+                  │  │  Ollama  │  (local, no API key)    │
+                  │  └──────────┘                         │
+                  └──────────────────────────────────────┘
 ```
 
 ### Component Overview
@@ -72,8 +153,9 @@ A [Palantir AIP](https://www.palantir.com/platforms/aip/)-style data agent that 
 | **Agent Nodes** | `src/agent/nodes.py` | `classify_intent`, `generate_sql`, `execute_sql_node`, `format_result`, `plan_analysis`, `execute_analysis_step`, `synthesize_results` |
 | **SQL Executor** | `src/database/executor.py` | `BaseExecutor` ABC + `SQLiteExecutor`; permission control; 5-second timeout |
 | **Mock Data** | `src/database/mock_data.py` | Faker-based data generation with FK linking |
-| **LLM Abstraction** | `src/llm/base.py` | `LLMClient` Protocol |
+| **LLM Abstraction** | `src/llm/base.py` | `LLMClient` Protocol — all providers implement this |
 | **Vertex AI Client** | `src/llm/vertex.py` | Gemini via `google-cloud-aiplatform` |
+| **OpenAI-compat Client** | `src/llm/openai_compat.py` | OpenAI and OpenRouter — single client, configurable `base_url` |
 | **Ollama Client** | `src/llm/ollama.py` | Local models via Ollama REST API |
 | **CLI** | `src/cli/app.py` | Domain selection, conversation loop, rich output |
 | **Web UI** | `src/web/app.py` | Streamlit chat interface |
@@ -108,70 +190,24 @@ classify_intent (LLM)
 ### Prerequisites
 
 - Python 3.11+
-- One of:
-  - Google Cloud project with Vertex AI enabled + service account JSON
-  - [Ollama](https://ollama.com) running locally with a model pulled
+- One of the supported LLM providers (see [LLM Providers](#llm-providers))
 
 ### Install
 
 ```bash
-git clone https://github.com/ordiy/dev_aip_ontology_agent.git
-cd dev_aip_ontology_agent
+git clone https://github.com/ordiy/ontology-aip-agent.git
+cd ontology-aip-agent
 python -m venv .venv && source .venv/bin/activate
 pip install -e .
 ```
 
 ### Configure
 
-Copy and edit the config:
-
 ```bash
-cp config.yaml config.local.yaml   # local overrides (gitignored)
+cp config.yaml config.local.yaml   # gitignored — safe to put API keys here
 ```
 
-**Vertex AI (default):**
-```yaml
-llm:
-  provider: vertex
-  model: gemini-3.1-pro-preview
-
-vertex:
-  project: YOUR_GCP_PROJECT_ID
-  location: global
-  credentials: /path/to/service-account.json
-```
-
-**Ollama (local, no cloud required):**
-```yaml
-llm:
-  provider: ollama
-  model: llama3
-
-ollama:
-  host: http://localhost:11434
-```
-
-**OpenRouter (200+ models — Claude, Gemini, Llama, etc.):**
-```yaml
-llm:
-  provider: openrouter
-
-openrouter:
-  api_key: ""        # or export OPENROUTER_API_KEY=sk-or-v1-...
-  model: anthropic/claude-3.5-sonnet   # any model at openrouter.ai/models
-```
-
-**OpenAI:**
-```yaml
-llm:
-  provider: openai
-
-openai:
-  api_key: ""        # or export OPENAI_API_KEY=sk-...
-  model: gpt-4o
-```
-
-> API keys must never be committed. Put them in `config.local.yaml` (gitignored) or use environment variables.
+Edit `config.local.yaml` with your chosen provider (see [LLM Providers](#llm-providers) for all options).
 
 ### Run
 
@@ -272,8 +308,9 @@ ecommerce> Update order #42 status to shipped            ← WRITE (requires con
 ## Project Structure
 
 ```
-dev_aip_ontology_agent/
-├── config.yaml                  # Main configuration
+ontology-aip-agent/
+├── config.yaml                  # Main configuration (no secrets)
+├── config.local.yaml            # Local overrides with API keys (gitignored)
 ├── pyproject.toml
 ├── ontologies/                  # OWL/RDF domain definitions
 │   ├── ecommerce.rdf
@@ -299,19 +336,21 @@ dev_aip_ontology_agent/
 │   ├── llm/
 │   │   ├── base.py              # LLMClient Protocol
 │   │   ├── vertex.py            # Vertex AI Gemini client
+│   │   ├── openai_compat.py     # OpenAI + OpenRouter client (shared, OpenAI-compatible API)
 │   │   └── ollama.py            # Ollama local model client
 │   ├── cli/
 │   │   └── app.py               # CLI entry point
 │   └── web/
 │       ├── app.py               # Streamlit web UI
 │       └── visualizer.py        # Plotly chart type detection + rendering
-├── tests/                       # 101 tests (pytest)
+├── tests/                       # 111 tests (pytest)
 │   ├── test_parser.py
 │   ├── test_schema.py
 │   ├── test_executor.py
 │   ├── test_agent.py
 │   ├── test_web.py
-│   └── test_connectors.py
+│   ├── test_connectors.py
+│   └── test_openai_compat.py
 └── docs/
     └── superpowers/
         ├── specs/               # Design spec
@@ -324,7 +363,7 @@ dev_aip_ontology_agent/
 
 ```bash
 pytest
-# 101 passed
+# 111 passed
 ```
 
 ---
@@ -333,12 +372,19 @@ pytest
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `llm.provider` | `vertex` | `vertex` or `ollama` |
-| `llm.model` | `gemini-3.1-pro-preview` | Model name |
-| `llm.temperature` | `0.0` | LLM temperature |
+| `llm.provider` | `vertex` | `vertex` \| `openai` \| `openrouter` \| `ollama` |
+| `llm.model` | `gemini-3.1-pro-preview` | Model name (used by vertex provider) |
+| `llm.temperature` | `0.0` | LLM sampling temperature |
 | `vertex.project` | — | GCP project ID |
 | `vertex.location` | `global` | Vertex AI region |
 | `vertex.credentials` | — | Path to service account JSON |
+| `openai.api_key` | — | OpenAI API key |
+| `openai.model` | `gpt-4o` | OpenAI model ID |
+| `openai.base_url` | `https://api.openai.com/v1` | API base URL |
+| `openrouter.api_key` | — | OpenRouter API key |
+| `openrouter.model` | `anthropic/claude-3.5-sonnet` | Model ID (see openrouter.ai/models) |
+| `openrouter.base_url` | `https://openrouter.ai/api/v1` | API base URL |
+| `openrouter.app_name` | `ontology-aip-agent` | App name sent in `X-Title` header |
 | `ollama.host` | `http://localhost:11434` | Ollama server URL |
 | `ollama.model` | `llama3` | Ollama model name |
 | `ollama.timeout` | `120` | Request timeout (seconds) |
@@ -349,14 +395,27 @@ pytest
 | `permissions.delete` | `confirm` | DELETE permission mode |
 | `permissions.admin` | `deny` | DDL permission mode |
 
-Environment variables override `config.yaml`:
+### Environment Variables
+
+All API keys can be set via environment variables instead of `config.local.yaml`:
 
 ```bash
-export LLM_PROVIDER=ollama
-export LLM_MODEL=qwen2
+# Provider selection
+export LLM_PROVIDER=openrouter          # vertex | openai | openrouter | ollama
+export LLM_MODEL=anthropic/claude-3.5-sonnet
+
+# OpenRouter
+export OPENROUTER_API_KEY=sk-or-v1-...
+
+# OpenAI
+export OPENAI_API_KEY=sk-...
+
+# Vertex AI
 export GOOGLE_CLOUD_PROJECT=my-project
 export GOOGLE_APPLICATION_CREDENTIALS=/path/to/creds.json
 ```
+
+Environment variables take precedence over `config.yaml` and `config.local.yaml`.
 
 ---
 
@@ -370,8 +429,9 @@ export GOOGLE_APPLICATION_CREDENTIALS=/path/to/creds.json
 | rdflib (Python RDF library) | https://rdflib.readthedocs.io/ |
 | OWL Web Ontology Language (W3C) | https://www.w3.org/OWL/ |
 | Vertex AI Gemini API | https://cloud.google.com/vertex-ai/generative-ai/docs |
-| OpenRouter (200+ models, OpenAI-compatible) | https://openrouter.ai |
-| OpenAI API | https://platform.openai.com/docs/api-reference |
+| OpenRouter — model catalogue | https://openrouter.ai/models |
+| OpenRouter — API docs | https://openrouter.ai/docs |
+| OpenAI API reference | https://platform.openai.com/docs/api-reference |
 | Ollama | https://ollama.com |
 | Streamlit | https://streamlit.io |
 | Faker (mock data) | https://faker.readthedocs.io/ |
