@@ -56,6 +56,9 @@ ENV_OVERRIDES = {
     "GOOGLE_APPLICATION_CREDENTIALS": ("vertex", "credentials"),
     "OPENAI_API_KEY": ("openai", "api_key"),
     "OPENROUTER_API_KEY": ("openrouter", "api_key"),
+    "LANGFUSE_PUBLIC_KEY": ("langfuse", "public_key"),
+    "LANGFUSE_SECRET_KEY": ("langfuse", "secret_key"),
+    "LANGFUSE_BASE_URL": ("langfuse", "host"),
 }
 
 
@@ -79,6 +82,14 @@ def load_config(config_path: str = "config.yaml") -> dict:
             if not isinstance(file_config, dict):
                 file_config = {}
         config = _deep_merge(config, file_config)
+
+    # config.local.yaml overrides config.yaml (gitignored, for local secrets)
+    local_path = path.parent / (path.stem + ".local.yaml")
+    if local_path.exists():
+        with open(local_path) as f:
+            local_config = yaml.safe_load(f)
+            if isinstance(local_config, dict):
+                config = _deep_merge(config, local_config)
 
     for env_var, (section, key) in ENV_OVERRIDES.items():
         value = os.environ.get(env_var)

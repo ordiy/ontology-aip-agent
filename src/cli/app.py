@@ -316,13 +316,18 @@ def main():
             "current_op_index": 0,
         }
 
-        handler = obs.get_handler(
+        with obs.start_trace(
             session_id=session_id,
-            trace_name=f'query:{initial_state.get("intent", "unknown")}',
-            metadata={'domain': domain_name, 'query': user_input},
-        )
-        invoke_config = {'callbacks': [handler]} if handler else {}
-        result = agent.invoke(initial_state, invoke_config)
+            name="agent-query",
+            input={"query": user_input, "domain": domain_name},
+            metadata={"domain": domain_name},
+        ) as trace:
+            result = agent.invoke(initial_state)
+            if trace:
+                trace.update(output={
+                    "intent": result.get("intent", ""),
+                    "response": result.get("response", ""),
+                })
 
         # Show intent
         if result.get("intent"):

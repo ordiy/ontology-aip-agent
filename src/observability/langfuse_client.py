@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
+from contextlib import contextmanager
+from typing import Any, Generator
 
 from src.llm.base import LLMClient
 
@@ -10,13 +11,13 @@ logger = logging.getLogger(__name__)
 
 try:
     from langfuse import Langfuse
+    from langfuse.types import TraceContext
     _LANGFUSE_AVAILABLE = True
 except ImportError:
     logger.warning("langfuse package is not installed. Observability will be disabled.")
     _LANGFUSE_AVAILABLE = False
 
 # LangGraph callback handler requires 'langchain' (not just langchain-core).
-# Try to import; gracefully degrade to None if unavailable.
 try:
     from langfuse.langchain import CallbackHandler as _LangfuseCallbackHandler
     _CALLBACK_AVAILABLE = True
@@ -30,18 +31,21 @@ def _estimate_tokens(x: Any) -> int:
 
 
 class ObservabilityClient:
-    """管理 Langfuse 连接，提供 handler 和 LLM 包装器。
+    """Manages Langfuse connection, provides trace context manager and LLM wrapper.
 
-    兼容 Langfuse v4+ (start_observation API)。
-    LangGraph CallbackHandler 在 langchain 可用时自动启用，否则跳过节点追踪
-    但保留 LLM generation 追踪。
+    Compatible with Langfuse v4+ (start_as_current_observation / TraceContext API).
+
+    Usage:
+        obs = ObservabilityClient(config["langfuse"])
+        llm = obs.wrap_llm(raw_llm)
+
+        with obs.start_trace(session_id, "agent-query", input={"query": q}) as trace:
+            result = agent.invoke(state)
+            if trace:
+                trace.update(output={"response": result.get("response")})
     """
 
     def __init__(self, config: dict):
-        """
-        Args:
-            config: 来自 config.yaml 的 langfuse 节，含 enabled/public_key/secret_key/host
-        """
         self._config = config
         self._enabled = bool(config.get("enabled", False))
         self._langfuse: Any = None
@@ -71,6 +75,49 @@ class ObservabilityClient:
     def enabled(self) -> bool:
         return self._enabled
 
+    @contextmanager
+    def start_trace(
+        self,
+        session_id: str,
+        name: str = "agent-query",
+        input: Any = None,
+        metadata: dict | None = None,
+    ) -> Generator[Any, None, None]:
+        """Context manager that creates a root trace observation.
+
+        All LLM generations executed inside this block are automatically
+        nested as children via Langfuse's OpenTelemetry context propagation.
+
+        Yields the root observation (or None when disabled).
+
+        Example:
+            with obs.start_trace(session_id, "agent-query", input={"q": q}) as root:
+                result = agent.invoke(state)
+                if root:
+                    root.update(output={"response": result["response"]})
+        """
+        if not self._enabled or self._langfuse is None:
+            yield None
+            return
+
+        trace_id = self._langfuse.create_trace_id(seed=session_id)
+        trace_ctx = TraceContext(trace_id=trace_id)
+
+        with self._langfuse.start_as_current_observation(
+            trace_context=trace_ctx,
+            name=name,
+            as_type="agent",
+            input=input,
+            metadata={**(metadata or {}), "session_id": session_id},
+        ) as root_obs:
+            try:
+                yield root_obs
+            except Exception as exc:
+                root_obs.update(level="ERROR", status_message=str(exc))
+                raise
+            finally:
+                self._langfuse.flush()
+
     def get_handler(
         self,
         session_id: str,
@@ -78,10 +125,9 @@ class ObservabilityClient:
         user_id: str | None = None,
         metadata: dict | None = None,
     ) -> Any | None:
-        """返回 LangGraph CallbackHandler（需要 langchain）；不可用时返回 None。
+        """Return LangGraph CallbackHandler (requires langchain); None when unavailable.
 
-        None 时 agent.invoke(state, config={}) 仍正常运行，只是无节点级追踪。
-        LLM generation 追踪由 wrap_llm() 独立保证。
+        Kept for backward-compatibility. Prefer start_trace() for explicit trace control.
         """
         if not self._enabled or not _CALLBACK_AVAILABLE:
             return None
@@ -100,19 +146,23 @@ class ObservabilityClient:
             return None
 
     def wrap_llm(self, llm: LLMClient) -> LLMClient:
-        """返回带 generation 追踪的包装 LLM；disabled 时原样返回。"""
+        """Return a generation-tracking wrapper around llm; returns llm unchanged when disabled."""
         if not self._enabled or self._langfuse is None:
             return llm
         return LangfuseTrackedLLMClient(llm, self._langfuse)  # type: ignore[return-value]
 
     def flush(self) -> None:
-        """强制刷新待发送的事件（进程退出前调用）。"""
+        """Force-flush pending events (call before process exit)."""
         if self._langfuse:
             self._langfuse.flush()
 
 
 class LangfuseTrackedLLMClient:
-    """包装任意 LLMClient，使用 Langfuse v4 start_observation API 追踪每次 chat() 调用。"""
+    """Wraps any LLMClient, recording each chat() call as a Langfuse generation.
+
+    When called inside an obs.start_trace() context, the generation is
+    automatically nested under the parent trace via OTel context propagation.
+    """
 
     def __init__(self, inner: LLMClient, langfuse_instance: Any):
         self._inner = inner

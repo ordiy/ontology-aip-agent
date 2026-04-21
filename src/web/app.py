@@ -14,6 +14,7 @@ import sys
 import streamlit as st
 from pathlib import Path
 import pandas as pd
+from uuid import uuid4
 
 # When launched via `streamlit run src/web/app.py`, Streamlit adds the script's
 # directory (src/web/) to sys.path instead of the project root. Insert the
@@ -30,6 +31,7 @@ from src.database.schema import create_tables
 from src.database.mock_data import generate_mock_data
 from src.database.executor import SQLExecutor
 from src.agent.graph import build_graph
+from src.observability import ObservabilityClient
 
 
 # ─────────────────────────────────────────────
@@ -40,6 +42,13 @@ st.set_page_config(
     page_icon="🧠",
     layout="wide",
 )
+
+
+@st.cache_resource(show_spinner=False)
+def _get_obs(config_key: str) -> "ObservabilityClient":
+    """Singleton ObservabilityClient — cached for the lifetime of the Streamlit process."""
+    config = load_config()
+    return ObservabilityClient(config.get("langfuse", {}))
 
 
 def _find_ontologies(ontology_dir: str) -> dict[str, str]:
@@ -132,6 +141,10 @@ def _load_domain(domain_name: str, rdf_path: str, config: dict):
 
     # Initialize LLM based on config provider
     llm = _build_llm(config)
+
+    # Wrap LLM with observability (no-op when Langfuse is disabled)
+    obs = _get_obs("singleton")
+    llm = obs.wrap_llm(llm)
 
     executor = SQLExecutor(db_path, config["permissions"])
     ontology_context = generate_context(schema)
@@ -266,11 +279,16 @@ def main():
     if "_llm_context_history" not in st.session_state:
         st.session_state._llm_context_history = []
 
-    # Handle domain switch
+    # Persistent session ID for Langfuse trace grouping
+    if "_session_id" not in st.session_state:
+        st.session_state._session_id = str(uuid4())
+
+    # Handle domain switch — reset conversation state and start a new session
     if st.session_state.get("_current_domain") != selected_domain:
         st.session_state.chat_history = []
         st.session_state._llm_context_history = []
         st.session_state.pending_write = None
+        st.session_state._session_id = str(uuid4())
         st.session_state["_current_domain"] = selected_domain
 
     # Track pending write approval
@@ -346,8 +364,20 @@ def main():
             "conversation_history": st.session_state._llm_context_history,
         }
 
+        obs = _get_obs("singleton")
         with st.spinner("Thinking..."):
-            result = agent.invoke(initial_state)
+            with obs.start_trace(
+                session_id=st.session_state._session_id,
+                name="agent-query",
+                input={"query": user_input, "domain": selected_domain},
+                metadata={"domain": selected_domain},
+            ) as trace:
+                result = agent.invoke(initial_state)
+                if trace:
+                    trace.update(output={
+                        "intent": result.get("intent", ""),
+                        "response": result.get("response", ""),
+                    })
 
         # Check if write approval needed
         if result.get("approved") is None and result.get("permission_level") == "confirm":
