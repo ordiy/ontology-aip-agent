@@ -109,6 +109,26 @@ from src.agent.nodes._sql_utils import clean_sql, detect_permission_level
 
 ---
 
+## 功能验证规范
+
+**每次完成代码修改后，必须执行以下验证步骤，确认通过后才能提交：**
+
+1. **单元测试**：`source .venv/bin/activate && pytest tests/ -v`  
+   全部绿灯才可继续；有失败时先修复，不能跳过。
+
+2. **Web UI 功能测试**（涉及 `src/web/` 或 Agent 核心路径时）：
+   - 确认 Streamlit 已运行：`curl -s -o /dev/null -w "%{http_code}" http://localhost:8502`（期望 200）
+   - 未运行时启动：`nohup .venv/bin/streamlit run src/web/app.py --server.headless true --server.port 8502 > /tmp/streamlit.log 2>&1 &`
+   - 用 Playwright 脚本（或 skill `webapp-testing http://localhost:8502`）执行一次真实查询，验证无 `AttributeError` / `Traceback`，响应包含预期 Intent 标签
+
+3. **可观测性验证**（涉及 `src/observability/` 或配置时）：  
+   `python -c "from src.config import load_config; from src.observability import ObservabilityClient; obs = ObservabilityClient(load_config().get('langfuse', {})); print('obs enabled:', obs.enabled)"`  
+   确认 `enabled: True` 且 auth 通过。
+
+> 例外：纯文档、注释、`.md` 文件改动可跳过步骤 2/3。
+
+---
+
 ## 测试规范
 
 ```python
