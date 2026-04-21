@@ -11,6 +11,7 @@ from src.database.executor import SQLResult
 from src.ontology.provider import OntologyProvider
 from src.federation.executor_registry import ExecutorRegistry
 from src.federation.parser import extract_tables
+from src.federation.rewriter import expand_virtual_entities
 
 logger = logging.getLogger(__name__)
 
@@ -65,10 +66,17 @@ class QueryPlanner:
         Raises:
             NotImplementedError: If the query spans multiple engines.
         """
-        default_engine = self._registry.default().dialect
-        tables = extract_tables(sql, dialect=default_engine)
-        
         ctx = self._ontology.context
+        
+        default_engine = self._registry.default().dialect
+        
+        if ctx.virtual_entities:
+            rewritten_sql = expand_virtual_entities(sql, ctx.virtual_entities, dialect=default_engine)
+        else:
+            rewritten_sql = sql
+            
+        tables = extract_tables(rewritten_sql, dialect=default_engine)
+        
         mappings = ctx.physical_mappings
 
         engines = set()
@@ -104,7 +112,8 @@ class QueryPlanner:
         engine = engines.pop()
         
         # In phase 1, we just pass the original SQL
-        sub_query = SubQuery(engine=engine, sql=sql)
+        # Phase 2: use the rewritten SQL containing expanded virtual entities
+        sub_query = SubQuery(engine=engine, sql=rewritten_sql)
         
         return QueryPlan(
             kind="single",

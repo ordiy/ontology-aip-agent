@@ -104,9 +104,12 @@ def parse_ontology(rdf_path: str) -> OntologySchema:
         if domain != "Unknown":
             break
 
-    # Extract classes
+    # Extract classes (skip virtual entities — they are views, not tables)
     classes_by_uri: dict[str, OntologyClass] = {}
     for s, p, o in g.triples((None, RDF.type, OWL.Class)):
+        is_virtual = g.value(s, AIP.isVirtual)
+        if is_virtual is not None and str(is_virtual).lower() == "true":
+            continue
         uri = str(s)
         label = _uri_local_name(uri)
         for _, _, lbl in g.triples((s, RDFS.label, None)):

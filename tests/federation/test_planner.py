@@ -129,3 +129,81 @@ def test_planner_unknown_table_uses_default() -> None:
     assert plan.kind == "single"
     assert len(plan.sub_queries) == 1
     assert plan.sub_queries[0].engine == "sqlite"
+from src.federation.rewriter import expand_virtual_entities
+from src.ontology.provider import VirtualEntity
+
+def test_rewriter_expands_simple_virtual_entity() -> None:
+    virtual_entities = {
+        "VIPCustomer": VirtualEntity(name="VIPCustomer", based_on="Customer", filter_sql="lifetime_value > 10000")
+    }
+    sql = "SELECT COUNT(*) FROM VIPCustomer"
+    rewritten = expand_virtual_entities(sql, virtual_entities, dialect="sqlite")
+    assert "Customer" in rewritten
+    assert "lifetime_value > 10000" in rewritten
+
+def test_rewriter_preserves_alias() -> None:
+    virtual_entities = {
+        "VIPCustomer": VirtualEntity(name="VIPCustomer", based_on="Customer", filter_sql="lifetime_value > 10000")
+    }
+    sql = "SELECT v.id FROM VIPCustomer v"
+    rewritten = expand_virtual_entities(sql, virtual_entities, dialect="sqlite")
+    # Check that alias is preserved
+    assert " AS v" in rewritten or " v" in rewritten
+
+def test_rewriter_no_op_when_no_virtuals_referenced() -> None:
+    virtual_entities = {
+        "VIPCustomer": VirtualEntity(name="VIPCustomer", based_on="Customer", filter_sql="lifetime_value > 10000")
+    }
+    sql = "SELECT * FROM Customer"
+    rewritten = expand_virtual_entities(sql, virtual_entities, dialect="sqlite")
+    assert "Customer" in rewritten
+    assert "VIPCustomer" not in rewritten
+    assert "lifetime_value" not in rewritten
+
+class MockOntologyProviderWithVirtual(MockOntologyProvider):
+    def __init__(self, mappings, virtual_entities):
+        super().__init__(mappings)
+        self._virtual_entities = virtual_entities
+
+    def load(self) -> OntologyContext:
+        return OntologyContext(
+            schema_for_llm="",
+            rules={},
+            physical_mappings=self._mappings,
+            virtual_entities=self._virtual_entities,
+        )
+
+def test_planner_routes_virtual_entity_to_base_engine() -> None:
+    mappings = {
+        "Customer": PhysicalMapping(physical_table="customers", query_engine="sqlite")
+    }
+    virtual_entities = {
+        "VIPCustomer": VirtualEntity(name="VIPCustomer", based_on="Customer", filter_sql="lifetime_value > 10000")
+    }
+    provider = MockOntologyProviderWithVirtual(mappings, virtual_entities)
+    registry = ExecutorRegistry({"sqlite": FakeExecutor("SQLite")})
+    planner = QueryPlanner(ontology=provider, registry=registry)
+    
+    plan = planner.plan("SELECT * FROM VIPCustomer")
+    assert plan.kind == "single"
+    assert len(plan.sub_queries) == 1
+    assert plan.sub_queries[0].engine == "sqlite"
+    assert "lifetime_value > 10000" in plan.sub_queries[0].sql
+
+def test_planner_executes_rewritten_sql() -> None:
+    executor = FakeExecutor("SQLite")
+    mappings = {
+        "Customer": PhysicalMapping(physical_table="customers", query_engine="sqlite")
+    }
+    virtual_entities = {
+        "VIPCustomer": VirtualEntity(name="VIPCustomer", based_on="Customer", filter_sql="lifetime_value > 10000")
+    }
+    provider = MockOntologyProviderWithVirtual(mappings, virtual_entities)
+    registry = ExecutorRegistry({"sqlite": executor})
+    planner = QueryPlanner(ontology=provider, registry=registry)
+    
+    plan = planner.plan("SELECT * FROM VIPCustomer")
+    planner.execute(plan, approved=True)
+    
+    assert executor.last_sql == plan.sub_queries[0].sql
+    assert "lifetime_value > 10000" in executor.last_sql

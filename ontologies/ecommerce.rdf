@@ -23,6 +23,9 @@
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#physicalTable"/>
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#queryEngine"/>
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#partitionKeys"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#isVirtual"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#basedOn"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#filter"/>
 
     <!-- ===================== -->
     <!-- Entity Types (Classes) -->
@@ -74,6 +77,16 @@
         <aip:physicalTable>iceberg_catalog.ecommerce.orders</aip:physicalTable>
         <aip:queryEngine>starrocks</aip:queryEngine>
         <aip:partitionKeys>orderDate</aip:partitionKeys>
+    </owl:Class>
+
+    <owl:Class rdf:about="http://example.org/ontology/e-commerce-platform/HighValueOrder">
+        <rdfs:label>HighValueOrder</rdfs:label>
+        <rdfs:comment>Virtual view of orders with total above $5000 — used for VIP buyer analytics</rdfs:comment>
+        <ont:icon>💎</ont:icon>
+        <ont:color>#D13438</ont:color>
+        <aip:isVirtual rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</aip:isVirtual>
+        <aip:basedOn rdf:resource="http://example.org/ontology/e-commerce-platform/Order"/>
+        <aip:filter>total &gt; 5000</aip:filter>
     </owl:Class>
 
     <owl:Class rdf:about="http://example.org/ontology/e-commerce-platform/Review">

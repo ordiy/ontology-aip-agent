@@ -1,7 +1,7 @@
 # src/ontology/provider.py
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from .parser import EntityRule
+from src.ontology.parser import EntityRule
 
 @dataclass
 class PhysicalMapping:
@@ -9,11 +9,25 @@ class PhysicalMapping:
     query_engine: str = ""
     partition_keys: list[str] = field(default_factory=list)
 
+@dataclass(frozen=True)
+class VirtualEntity:
+    """A virtual/derived entity: a filtered view over a real entity.
+
+    Attributes:
+        name: Virtual entity name (dict key used elsewhere), e.g. "VIPCustomer".
+        based_on: Real entity name it filters (the rdfs:label of the basedOn class).
+        filter_sql: Raw SQL WHERE clause body (no 'WHERE' keyword).
+    """
+    name: str
+    based_on: str
+    filter_sql: str
+
 @dataclass
 class OntologyContext:
     schema_for_llm: str
     rules: dict[str, EntityRule]
     physical_mappings: dict[str, PhysicalMapping]
+    virtual_entities: dict[str, VirtualEntity] = field(default_factory=dict)
 
 class OntologyProvider(ABC):
     """

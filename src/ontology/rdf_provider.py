@@ -1,11 +1,12 @@
-# src/ontology/rdf_provider.py
+import logging
+
 from rdflib import Graph, Namespace, RDF, OWL, RDFS
-from .provider import OntologyProvider, OntologyContext, PhysicalMapping
-from .parser import parse_ontology, OntologySchema
-from .context import table_name as _sqlite_table_name
+from src.ontology.provider import OntologyProvider, OntologyContext, PhysicalMapping, VirtualEntity
+from src.ontology.parser import parse_ontology, OntologySchema
+from src.ontology.context import table_name as _sqlite_table_name
 
+logger = logging.getLogger(__name__)
 AIP = Namespace("http://aip.example.org/rules#")
-
 
 class RDFOntologyProvider(OntologyProvider):
     def __init__(self, rdf_paths: list[str], executor_dialect: str = "SQLite"):
@@ -37,8 +38,10 @@ class RDFOntologyProvider(OntologyProvider):
         for path in self.rdf_paths:
             g.parse(path, format="xml")
 
+        class_uris = list(g.subjects(RDF.type, OWL.Class))
+
         physical_mappings = {}
-        for s in g.subjects(RDF.type, OWL.Class):
+        for s in class_uris:
             entity_name = str(s).rsplit("/", 1)[-1].rsplit("#", 1)[-1]
             for _, _, lbl in g.triples((s, RDFS.label, None)):
                 entity_name = str(lbl)
@@ -56,16 +59,56 @@ class RDFOntologyProvider(OntologyProvider):
                     partition_keys=partition_keys,
                 )
 
-        schema_for_llm = self._render_schema_for_llm(merged_schema, physical_mappings)
+        virtual_entities = self._load_virtual_entities(g, class_uris)
+
+        schema_for_llm = self._render_schema_for_llm(merged_schema, physical_mappings, virtual_entities)
 
         return OntologyContext(
             schema_for_llm=schema_for_llm,
             rules=merged_rules,
             physical_mappings=physical_mappings,
+            virtual_entities=virtual_entities,
         )
 
+    def _load_virtual_entities(self, graph: Graph, class_uris: list) -> dict[str, VirtualEntity]:
+        """Extract virtual entity annotations from the RDF graph via SPARQL-like node matching."""
+        virtual_entities = {}
+        for s in class_uris:
+            is_virtual_literal = graph.value(s, AIP.isVirtual)
+            if not is_virtual_literal:
+                continue
+                
+            is_virtual = str(is_virtual_literal).lower() == "true"
+            if not is_virtual:
+                continue
+
+            entity_name = str(s).rsplit("/", 1)[-1].rsplit("#", 1)[-1]
+            for _, _, lbl in graph.triples((s, RDFS.label, None)):
+                entity_name = str(lbl)
+                break
+
+            based_on_uri = graph.value(s, AIP.basedOn)
+            filter_sql = str(graph.value(s, AIP.filter) or "")
+
+            if not based_on_uri or not filter_sql:
+                logger.warning(f"Virtual entity {entity_name} missing basedOn or filter. Skipping.")
+                continue
+
+            based_on_name = str(based_on_uri).rsplit("/", 1)[-1].rsplit("#", 1)[-1]
+            for _, _, lbl in graph.triples((based_on_uri, RDFS.label, None)):
+                based_on_name = str(lbl)
+                break
+
+            virtual_entities[entity_name] = VirtualEntity(
+                name=entity_name,
+                based_on=based_on_name,
+                filter_sql=filter_sql,
+            )
+
+        return virtual_entities
+
     def _render_schema_for_llm(
-        self, schema: OntologySchema, physical_mappings: dict[str, PhysicalMapping]
+        self, schema: OntologySchema, physical_mappings: dict[str, PhysicalMapping], virtual_entities: dict[str, VirtualEntity]
     ) -> str:
         lines = [f"Domain: {schema.domain}", ""]
 
@@ -94,5 +137,8 @@ class RDFOntologyProvider(OntologyProvider):
                 lines.append(f"  [Decision Rule]: {rule.decision_rule}")
 
             lines.append("")
-
+            
+        for virt in virtual_entities.values():
+            lines.append(f"Virtual entity: {virt.name}  -- based on: {virt.based_on}  -- filter: {virt.filter_sql}")
+            
         return "\n".join(lines).strip()
