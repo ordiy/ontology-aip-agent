@@ -87,9 +87,9 @@ def test_planner_single_engine_plan() -> None:
     assert plan.sub_queries[0].engine == "sqlite"
 
 
-def test_planner_cross_engine_raises() -> None:
+def test_plan_federated_cross_engine_two_tables() -> None:
     mappings = {
-        "User": PhysicalMapping(physical_table="users", query_engine="sqlite"),
+        "Customer": PhysicalMapping(physical_table="customers", query_engine="sqlite"),
         "Order": PhysicalMapping(physical_table="orders", query_engine="starrocks")
     }
     provider = MockOntologyProvider(mappings)
@@ -99,8 +99,60 @@ def test_planner_cross_engine_raises() -> None:
     })
     planner = QueryPlanner(ontology=provider, registry=registry)
     
-    with pytest.raises(NotImplementedError, match="cross-source federation not yet supported"):
-        planner.plan("SELECT * FROM users JOIN orders ON users.id = orders.user_id")
+    plan = planner.plan("SELECT c.id, o.total FROM Customer c JOIN Order o ON c.id = o.customer_id WHERE o.total > 100")
+    
+    assert plan.kind == "federated"
+    assert len(plan.sub_queries) == 2
+    engines = {sq.engine for sq in plan.sub_queries}
+    assert engines == {"sqlite", "starrocks"}
+    
+    sql0 = plan.sub_queries[0].sql.upper()
+    sql1 = plan.sub_queries[1].sql.upper()
+    assert "FROM CUSTOMERS" in sql0 or "FROM CUSTOMERS" in sql1
+    assert "FROM ORDERS" in sql0 or "FROM ORDERS" in sql1
+    
+    final_sql = plan.join_spec.final_sql.upper()
+    assert "SUB_0" in final_sql
+    assert "SUB_1" in final_sql
+    assert "JOIN" in final_sql
+    assert "TOTAL > 100" in final_sql
+
+
+def test_plan_federated_preserves_join_type() -> None:
+    mappings = {
+        "Customer": PhysicalMapping(physical_table="customers", query_engine="sqlite"),
+        "Order": PhysicalMapping(physical_table="orders", query_engine="starrocks")
+    }
+    provider = MockOntologyProvider(mappings)
+    registry = ExecutorRegistry({
+        "sqlite": FakeExecutor("SQLite"),
+        "starrocks": FakeExecutor("MySQL")
+    })
+    planner = QueryPlanner(ontology=provider, registry=registry)
+    
+    plan = planner.plan("SELECT c.id, o.total FROM Customer c LEFT JOIN Order o ON c.id = o.customer_id WHERE o.total > 100")
+    
+    assert plan.kind == "federated"
+    final_sql = plan.join_spec.final_sql.upper()
+    assert "LEFT JOIN" in final_sql or "LEFT OUTER JOIN" in final_sql
+
+
+def test_plan_unsupported_shape_raises() -> None:
+    mappings = {
+        "Customer": PhysicalMapping(physical_table="customers", query_engine="sqlite"),
+        "Order": PhysicalMapping(physical_table="orders", query_engine="starrocks"),
+        "Product": PhysicalMapping(physical_table="products", query_engine="postgres")
+    }
+    provider = MockOntologyProvider(mappings)
+    registry = ExecutorRegistry({
+        "sqlite": FakeExecutor("SQLite"),
+        "starrocks": FakeExecutor("MySQL"),
+        "postgres": FakeExecutor("PostgreSQL")
+    })
+    planner = QueryPlanner(ontology=provider, registry=registry)
+    
+    with pytest.raises(NotImplementedError, match="federated plan supports only 2-table JOINs in Phase 3"):
+        planner.plan("SELECT * FROM Customer c JOIN Order o ON c.id = o.customer_id JOIN Product p ON o.product_id = p.id")
 
 
 def test_planner_execute_delegates() -> None:
@@ -207,3 +259,40 @@ def test_planner_executes_rewritten_sql() -> None:
     
     assert executor.last_sql == plan.sub_queries[0].sql
     assert "lifetime_value > 10000" in executor.last_sql
+
+def test_planner_execute_dispatches_federated_to_joiner() -> None:
+    mappings = {
+        "Customer": PhysicalMapping(physical_table="customers", query_engine="sqlite"),
+        "Order": PhysicalMapping(physical_table="orders", query_engine="other")
+    }
+    provider = MockOntologyProvider(mappings)
+    
+    # We will subclass FakeExecutor to return explicit rows so that the joiner actually does the join
+    class CannedFakeExecutor(FakeExecutor):
+        def __init__(self, dialect_name: str, rows: list[dict]):
+            super().__init__(dialect_name)
+            self._rows = rows
+        def execute(self, sql: str, approved: bool = False) -> SQLResult:
+            self.last_sql = sql
+            self.last_approved = approved
+            return SQLResult(operation="read", rows=self._rows)
+
+    fake_a = CannedFakeExecutor("SQLite", [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}])
+    fake_b = CannedFakeExecutor("other", [{"customer_id": 1, "total": 100}, {"customer_id": 1, "total": 50}, {"customer_id": 2, "total": 30}])
+    
+    registry = ExecutorRegistry({
+        "sqlite": fake_a,
+        "other": fake_b
+    })
+    planner = QueryPlanner(ontology=provider, registry=registry)
+    
+    plan = planner.plan("SELECT c.name, o.total FROM Customer c JOIN \"Order\" o ON c.id = o.customer_id ORDER BY c.name, o.total")
+    result = planner.execute(plan)
+    
+    assert result.error is None
+    assert len(result.rows) == 3
+    assert result.rows == [
+        {"name": "Alice", "total": 50},
+        {"name": "Alice", "total": 100},
+        {"name": "Bob", "total": 30},
+    ]

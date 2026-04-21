@@ -17,6 +17,20 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class JoinSpec:
+    """Describes the final stitch query that runs in the joiner (e.g. DuckDB).
+
+    sub_aliases: the aliases assigned to each SubQuery result, in order
+                 matching QueryPlan.sub_queries (e.g. ["sub_0", "sub_1"]).
+    final_sql: the SQL to execute in the joiner after each SubQuery has
+               been registered as a table named after its alias. References
+               sub_aliases in place of the original table names.
+    """
+    sub_aliases: list[str]
+    final_sql: str
+
+
+@dataclass
 class SubQuery:
     """Represents a part of a query to be executed on a specific engine."""
     engine: str
@@ -29,7 +43,7 @@ class QueryPlan:
     """Represents a planned execution strategy for a query."""
     kind: Literal["single", "federated"]
     sub_queries: list[SubQuery]
-    join_spec: object | None = None  # Phase 3 will define JoinSpec
+    join_spec: JoinSpec | None = None
 
 
 class QueryPlanner:
@@ -53,6 +67,7 @@ class QueryPlanner:
         """
         self._ontology = ontology
         self._registry = registry
+        self._joiner = None
 
     def plan(self, sql: str) -> QueryPlan:
         """Plan the execution of a SQL query.
@@ -105,19 +120,106 @@ class QueryPlanner:
         if not engines:
             engines.add(self._registry._default_engine)
 
-        if len(engines) > 1:
-            raise NotImplementedError("cross-source federation not yet supported (Phase 3)")
+        if len(engines) <= 1:
+            # Single engine execution
+            engine = engines.pop() if engines else self._registry._default_engine
+            
+            # In phase 1, we just pass the original SQL
+            # Phase 2: use the rewritten SQL containing expanded virtual entities
+            sub_query = SubQuery(engine=engine, sql=rewritten_sql)
+            
+            return QueryPlan(
+                kind="single",
+                sub_queries=[sub_query],
+            )
 
-        # Single engine execution
-        engine = engines.pop()
+        # Cross-engine logic (Phase 3.1)
+        import sqlglot
+        import sqlglot.expressions as exp
         
-        # In phase 1, we just pass the original SQL
-        # Phase 2: use the rewritten SQL containing expanded virtual entities
-        sub_query = SubQuery(engine=engine, sql=rewritten_sql)
+        try:
+            parse_dialect = default_engine.split()[0].lower() if default_engine else None
+            ast = sqlglot.parse_one(rewritten_sql, read=parse_dialect)
+        except Exception as e:
+            raise ValueError(f"Failed to parse SQL: {e}") from e
+
+        if not isinstance(ast, exp.Select):
+            raise NotImplementedError("federated plan supports only 2-table JOINs in Phase 3")
+
+        from_expr = ast.args.get("from_")
+        joins = ast.args.get("joins") or []
+
+        if not from_expr or not isinstance(from_expr.this, exp.Table):
+            raise NotImplementedError("federated plan supports only 2-table JOINs in Phase 3")
+            
+        if len(joins) != 1:
+            raise NotImplementedError("federated plan supports only 2-table JOINs in Phase 3")
+            
+        join_expr = joins[0]
+        if not isinstance(join_expr.this, exp.Table):
+            raise NotImplementedError("federated plan supports only 2-table JOINs in Phase 3")
+            
+        if not join_expr.args.get("on"):
+            raise NotImplementedError("federated plan supports only 2-table JOINs in Phase 3")
+
+        table_a = from_expr.this
+        table_b = join_expr.this
+
+        table_a_name = ".".join(p.name for p in table_a.parts)
+        table_b_name = ".".join(p.name for p in table_b.parts)
+
+        def resolve_table(name: str) -> tuple[str, str]:
+            for _, m in mappings.items():
+                if m.physical_table == name:
+                    return m.query_engine, m.physical_table
+            if name in mappings:
+                m = mappings[name]
+                return m.query_engine, m.physical_table or name
+            return self._registry._default_engine, name
+
+        engine_a, phys_a = resolve_table(table_a_name)
+        engine_b, phys_b = resolve_table(table_b_name)
         
+        sq0 = SubQuery(engine=engine_a, sql=f"SELECT * FROM {phys_a}")
+        sq1 = SubQuery(engine=engine_b, sql=f"SELECT * FROM {phys_b}")
+
+        a_names = {table_a.name}
+        if table_a.alias:
+            a_names.add(table_a.alias)
+
+        b_names = {table_b.name}
+        if table_b.alias:
+            b_names.add(table_b.alias)
+
+        table_a.set("this", exp.Identifier(this="sub_0"))
+        table_a.set("alias", exp.TableAlias(this=exp.Identifier(this="sub_0")))
+        table_a.set("db", None)
+        table_a.set("catalog", None)
+
+        table_b.set("this", exp.Identifier(this="sub_1"))
+        table_b.set("alias", exp.TableAlias(this=exp.Identifier(this="sub_1")))
+        table_b.set("db", None)
+        table_b.set("catalog", None)
+
+        for col in ast.find_all(exp.Column):
+            if col.table in a_names:
+                col.set("table", exp.Identifier(this="sub_0"))
+                col.set("db", None)
+                col.set("catalog", None)
+            elif col.table in b_names:
+                col.set("table", exp.Identifier(this="sub_1"))
+                col.set("db", None)
+                col.set("catalog", None)
+
+        final_sql = ast.sql(dialect="duckdb")
+
         return QueryPlan(
-            kind="single",
-            sub_queries=[sub_query],
+            kind="federated",
+            sub_queries=[sq0, sq1],
+            join_spec=JoinSpec(
+                sub_aliases=["sub_0", "sub_1"],
+                final_sql=final_sql,
+            ),
         )
 
     def execute(self, plan: QueryPlan, approved: bool = False) -> SQLResult:
@@ -134,7 +236,10 @@ class QueryPlanner:
             NotImplementedError: If the plan is federated.
         """
         if plan.kind == "federated":
-            raise NotImplementedError("cross-source federation not yet supported (Phase 3)")
+            if self._joiner is None:
+                from src.federation.joiner import Joiner
+                self._joiner = Joiner(self._registry)
+            return self._joiner.execute(plan, approved=approved)
 
         sub_query = plan.sub_queries[0]
         executor = self._registry.get(sub_query.engine)
