@@ -5,8 +5,26 @@ from src.ontology.context import generate_context
 from src.database.schema import create_tables
 from src.database.mock_data import generate_mock_data
 from src.database.executor import SQLExecutor
+from src.federation.executor_registry import ExecutorRegistry
+from src.federation.planner import QueryPlanner
+from src.ontology.provider import OntologyProvider, OntologyContext, PhysicalMapping
 from src.agent.nodes import classify_intent, generate_sql, execute_sql_node, format_result
 
+class MockOntologyProvider(OntologyProvider):
+    def __init__(self, context_str: str, tables: list[str]):
+        self.context_str = context_str
+        self.tables = tables
+
+    def load(self) -> OntologyContext:
+        mappings = {
+            t: PhysicalMapping(physical_table=t, query_engine="sqlite")
+            for t in self.tables
+        }
+        return OntologyContext(
+            schema_for_llm=self.context_str,
+            rules={},
+            physical_mappings=mappings
+        )
 
 class FakeLLM:
     def __init__(self, responses):
@@ -43,6 +61,9 @@ def test_full_read_pipeline(sample_rdf_path, tmp_path):
 
     # 4. Run agent nodes with fake LLM
     executor = SQLExecutor(db_path, {"read": "auto", "write": "confirm", "delete": "confirm", "admin": "deny"})
+    registry = ExecutorRegistry({"sqlite": executor})
+    ontology = MockOntologyProvider(context, ["customers", "orders"])
+    planner = QueryPlanner(ontology=ontology, registry=registry)
 
     state = {
         "messages": [],
@@ -64,7 +85,7 @@ def test_full_read_pipeline(sample_rdf_path, tmp_path):
     state.update(result)
 
     # Execute SQL
-    result = execute_sql_node(state, executor)
+    result = execute_sql_node(state, planner)
     assert result["query_result"][0]["total"] == 20
     state.update(result)
 
@@ -83,6 +104,9 @@ def test_full_write_pipeline_with_approval(sample_rdf_path, tmp_path):
 
     context = generate_context(schema)
     executor = SQLExecutor(db_path, {"read": "auto", "write": "confirm", "delete": "confirm", "admin": "deny"})
+    registry = ExecutorRegistry({"sqlite": executor})
+    ontology = MockOntologyProvider(context, ["customers", "orders"])
+    planner = QueryPlanner(ontology=ontology, registry=registry)
 
     state = {
         "messages": [],
@@ -104,13 +128,13 @@ def test_full_write_pipeline_with_approval(sample_rdf_path, tmp_path):
 
     # Execute without approval — should signal needs_approval
     state["approved"] = False
-    result = execute_sql_node(state, executor)
+    result = execute_sql_node(state, planner)
     assert result.get("approved") is None  # needs approval
 
     # Execute with approval
     state["approved"] = True
     state["permission_level"] = "confirm"
-    result = execute_sql_node(state, executor)
+    result = execute_sql_node(state, planner)
     assert result["affected_rows"] == 10
 
 def test_full_analyze_pipeline(sample_rdf_path, tmp_path):

@@ -16,6 +16,8 @@ dependencies = [
     "plotly>=5.0.0",
     "openai>=1.0.0",
     "langfuse>=2.0.0",
+    "sqlglot>=25.0.0",
+    "duckdb>=1.0.0",
 ]
 
 [project.optional-dependencies]

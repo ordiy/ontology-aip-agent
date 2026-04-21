@@ -18,6 +18,8 @@ from src.agent.nodes import (
 )
 from src.agent.state import AgentState
 from src.database.executor import BaseExecutor
+from src.federation.executor_registry import ExecutorRegistry
+from src.federation.planner import QueryPlanner
 from src.llm.base import LLMClient
 from src.ontology.provider import OntologyProvider
 
@@ -103,13 +105,25 @@ def _route_after_op_step(state: AgentState) -> str:
     return "synthesize"
 
 
-def build_graph(llm: LLMClient, executor: BaseExecutor, ontology: OntologyProvider):
+def build_graph(
+    llm: LLMClient,
+    executors: dict[str, BaseExecutor] | BaseExecutor,
+    ontology: OntologyProvider,
+    default_engine: str = "sqlite",
+):
     ctx = ontology.context
+    
+    if isinstance(executors, BaseExecutor):
+        executors = {default_engine: executors}
+        
+    registry = ExecutorRegistry(executors, default_engine=default_engine)
+    planner = QueryPlanner(ontology=ontology, registry=registry)
     
     # Capture dialect once so the generate_sql closure uses the right SQL syntax.
     # When a future StarRocksExecutor is plugged in, its dialect property will
     # automatically switch the LLM prompt to MySQL-compatible syntax.
-    db_dialect = executor.dialect
+    default_executor = registry.default()
+    db_dialect = default_executor.dialect
 
     graph = StateGraph(AgentState)
 
@@ -120,7 +134,7 @@ def build_graph(llm: LLMClient, executor: BaseExecutor, ontology: OntologyProvid
     })
     graph.add_node("classify_intent", lambda state: classify_intent(state, llm))
     graph.add_node("generate_sql", lambda state: generate_sql(state, llm, db_dialect=db_dialect))
-    graph.add_node("execute_sql", lambda state: execute_sql_node(state, executor))
+    graph.add_node("execute_sql", lambda state: execute_sql_node(state, planner))
     graph.add_node("format_result", lambda state: format_result(state, llm))
     graph.add_node("clarify", lambda state: clarify_question(state, llm))
     graph.add_node("give_up", lambda state: {"response": "I'm unable to understand your request after multiple attempts. Please try rephrasing, or use .tables to see available data."})
@@ -128,7 +142,7 @@ def build_graph(llm: LLMClient, executor: BaseExecutor, ontology: OntologyProvid
 
     # New ANALYZE nodes
     graph.add_node("plan_analysis", lambda state: plan_analysis(state, llm))
-    graph.add_node("execute_analysis_step", lambda state: execute_analysis_step(state, llm, executor))
+    graph.add_node("execute_analysis_step", lambda state: execute_analysis_step(state, llm, default_executor))
     graph.add_node("synthesize_results", lambda state: synthesize_results(state, llm))
 
     # Pattern D (DECIDE / OPERATE) nodes
@@ -136,8 +150,8 @@ def build_graph(llm: LLMClient, executor: BaseExecutor, ontology: OntologyProvid
     graph.add_node("apply_decision", lambda state: apply_decision(state, llm))
     graph.add_node("present_decision", present_decision)
     graph.add_node("plan_operation", lambda state: plan_operation(state, llm))
-    graph.add_node("execute_op_step", lambda state: execute_operation_step(state, executor))
-    graph.add_node("rollback", lambda state: rollback_operations(state, executor))
+    graph.add_node("execute_op_step", lambda state: execute_operation_step(state, default_executor))
+    graph.add_node("rollback", lambda state: rollback_operations(state, default_executor))
 
     # Existing edges
     graph.set_entry_point("load_context")

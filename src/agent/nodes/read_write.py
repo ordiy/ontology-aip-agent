@@ -11,6 +11,7 @@ import logging
 from src.agent.nodes._sql_utils import clean_sql, detect_permission_level
 from src.agent.state import AgentState
 from src.database.executor import BaseExecutor, PermissionDenied
+from src.federation.planner import QueryPlanner
 from src.llm.base import LLMClient
 
 logger = logging.getLogger(__name__)
@@ -155,7 +156,7 @@ def generate_sql(
     return {"generated_sql": sql, "permission_level": permission_level}
 
 
-def execute_sql_node(state: AgentState, executor: BaseExecutor) -> dict:
+def execute_sql_node(state: AgentState, planner: QueryPlanner) -> dict:
     """Execute the generated SQL statement.
 
     On SQL syntax/runtime errors (not permission denials), signals the graph
@@ -165,7 +166,7 @@ def execute_sql_node(state: AgentState, executor: BaseExecutor) -> dict:
 
     Args:
         state: Agent state; must contain ``generated_sql``.
-        executor: Database executor that runs the SQL.
+        planner: Query planner that resolves and runs the SQL.
 
     Returns:
         Partial state update with query results, error flags, or approval signal.
@@ -176,8 +177,9 @@ def execute_sql_node(state: AgentState, executor: BaseExecutor) -> dict:
     retry_count = state.get("sql_retry_count", 0)
 
     try:
-        result = executor.execute(
-            sql, approved=(approved is True) or permission_level == "auto"
+        plan = planner.plan(sql)
+        result = planner.execute(
+            plan, approved=(approved is True) or permission_level == "auto"
         )
     except PermissionDenied as exc:
         return {
