@@ -148,7 +148,7 @@ def _load_domain(domain_name: str, rdf_path: str, config: dict):
 
     executor = SQLExecutor(db_path, config["permissions"])
     ontology_context = generate_context(schema)
-    ontology = RDFOntologyProvider([rdf_path])
+    ontology = RDFOntologyProvider([rdf_path], executor_dialect=executor.dialect)
     agent = build_graph(llm, executor, ontology)
 
     return schema, db_path, ontology_context, llm, executor, agent

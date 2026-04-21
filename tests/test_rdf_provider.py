@@ -40,14 +40,23 @@ def test_load_physical_mappings(retail_rdf_path):
 
 
 def test_schema_for_llm_contains_physical_table(retail_rdf_path):
+    """StarRocks dialect renders full physical table names; SQLite uses simple names."""
     if not retail_rdf_path.exists():
         pytest.skip(f"{retail_rdf_path} not found")
 
-    provider = RDFOntologyProvider([str(retail_rdf_path)])
-    ctx = provider.load()
+    # StarRocks dialect → physical Iceberg table names
+    provider_sr = RDFOntologyProvider(
+        [str(retail_rdf_path)], executor_dialect="MySQL (StarRocks-compatible)"
+    )
+    ctx_sr = provider_sr.load()
+    assert "iceberg_catalog.retail.orders" in ctx_sr.schema_for_llm
+    assert "Table: iceberg_catalog.retail.orders  -- entity: Order" in ctx_sr.schema_for_llm
 
-    assert "iceberg_catalog.retail.orders" in ctx.schema_for_llm
-    assert "Table: iceberg_catalog.retail.orders  -- entity: Order" in ctx.schema_for_llm
+    # SQLite dialect (default) → simple snake_case table names
+    provider_sq = RDFOntologyProvider([str(retail_rdf_path)], executor_dialect="SQLite")
+    ctx_sq = provider_sq.load()
+    assert "iceberg_catalog.retail.orders" not in ctx_sq.schema_for_llm
+    assert "Table: orders  -- entity: Order" in ctx_sq.schema_for_llm
 
 
 def test_fallback_without_physical_table(tmp_path):
@@ -78,7 +87,8 @@ def test_fallback_without_physical_table(tmp_path):
         ctx = provider.load()
 
     assert "TestEntity" not in ctx.physical_mappings
-    assert "Table: testentitys  -- entity: TestEntity" in ctx.schema_for_llm
+    # _sqlite_table_name("TestEntity") → "test_entities" (proper snake_case plural)
+    assert "Table: test_entities  -- entity: TestEntity" in ctx.schema_for_llm
 
 
 def test_context_lazy_cache():

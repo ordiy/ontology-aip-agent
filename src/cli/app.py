@@ -78,7 +78,7 @@ def _initialize_domain(domain_name: str, ontologies: dict, config: dict, llm) ->
 
     ontology_context = generate_context(schema)
     executor = SQLExecutor(db_path, config["permissions"])
-    ontology = RDFOntologyProvider([rdf_path])
+    ontology = RDFOntologyProvider([rdf_path], executor_dialect=executor.dialect)
     agent = build_graph(llm=llm, executor=executor, ontology=ontology)
 
     return schema, db_path, class_to_table, ontology_context, agent, schema.rules

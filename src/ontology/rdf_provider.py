@@ -2,13 +2,15 @@
 from rdflib import Graph, Namespace, RDF, OWL, RDFS
 from .provider import OntologyProvider, OntologyContext, PhysicalMapping
 from .parser import parse_ontology, OntologySchema
+from .context import table_name as _sqlite_table_name
 
 AIP = Namespace("http://aip.example.org/rules#")
 
 
 class RDFOntologyProvider(OntologyProvider):
-    def __init__(self, rdf_paths: list[str]):
+    def __init__(self, rdf_paths: list[str], executor_dialect: str = "SQLite"):
         self.rdf_paths = rdf_paths
+        self._executor_dialect = executor_dialect
 
     def load(self) -> OntologyContext:
         merged_classes = []
@@ -67,11 +69,16 @@ class RDFOntologyProvider(OntologyProvider):
     ) -> str:
         lines = [f"Domain: {schema.domain}", ""]
 
+        use_physical = self._executor_dialect.lower() != "sqlite"
+
         for cls in schema.classes:
             mapping = physical_mappings.get(cls.name)
-            table_name = mapping.physical_table if (mapping and mapping.physical_table) else f"{cls.name.lower()}s"
+            if use_physical and mapping and mapping.physical_table:
+                tbl = mapping.physical_table          # e.g. iceberg_catalog.ecommerce.buyers
+            else:
+                tbl = _sqlite_table_name(cls.name)    # e.g. buyers
 
-            lines.append(f"Table: {table_name}  -- entity: {cls.name}")
+            lines.append(f"Table: {tbl}  -- entity: {cls.name}")
 
             cols = [
                 f"{p.name}({p.data_type})" + (" PK" if p.is_identifier else "")
