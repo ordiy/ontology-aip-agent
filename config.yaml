@@ -1,6 +1,6 @@
 llm:
   provider: vertex
-  model: gemini-3.1-pro-preview
+  model: gemini-2.5-flash
   temperature: 0.0
 
 vertex:
