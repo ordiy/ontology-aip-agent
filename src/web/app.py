@@ -25,6 +25,7 @@ if _PROJECT_ROOT not in sys.path:
 from src.config import load_config
 from src.ontology.parser import parse_ontology
 from src.ontology.context import generate_context
+from src.ontology.rdf_provider import RDFOntologyProvider
 from src.database.schema import create_tables
 from src.database.mock_data import generate_mock_data
 from src.database.executor import SQLExecutor
@@ -134,7 +135,8 @@ def _load_domain(domain_name: str, rdf_path: str, config: dict):
 
     executor = SQLExecutor(db_path, config["permissions"])
     ontology_context = generate_context(schema)
-    agent = build_graph(llm, executor, ontology_context)
+    ontology = RDFOntologyProvider([rdf_path])
+    agent = build_graph(llm, executor, ontology)
 
     return schema, db_path, ontology_context, llm, executor, agent
 
