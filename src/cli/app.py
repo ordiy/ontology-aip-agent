@@ -44,7 +44,7 @@ def _display_table(rows: list[dict]):
     console.print(table)
 
 
-def _initialize_domain(domain_name: str, ontologies: dict, config: dict, llm) -> tuple:
+def _initialize_domain(domain_name: str, ontologies: dict, config: dict, llm, obs=None) -> tuple:
     """Initialize schema, DB, mock data and agent for a given domain.
 
     Args:
@@ -52,6 +52,8 @@ def _initialize_domain(domain_name: str, ontologies: dict, config: dict, llm) ->
         ontologies: Dict mapping name -> rdf_path
         config: Loaded config dict
         llm: LLM client instance (already initialized)
+        obs: Optional ObservabilityClient threaded into the agent for nested
+            spans on federated sub-queries.
 
     Returns:
         Tuple of (schema, db_path, class_to_table, ontology_context, agent)
@@ -79,7 +81,13 @@ def _initialize_domain(domain_name: str, ontologies: dict, config: dict, llm) ->
     ontology_context = generate_context(schema)
     executor = SQLExecutor(db_path, config["permissions"])
     ontology = RDFOntologyProvider([rdf_path], executor_dialect=executor.dialect)
-    agent = build_graph(llm=llm, executor=executor, ontology=ontology)
+    agent = build_graph(
+        llm=llm,
+        executors=executor,
+        ontology=ontology,
+        federation_config=config.get("federation"),
+        obs=obs,
+    )
 
     return schema, db_path, class_to_table, ontology_context, agent, schema.rules
 
@@ -243,7 +251,7 @@ def main():
     llm = obs.wrap_llm(llm)
 
     schema, db_path, class_to_table, ontology_context, agent, rdf_rules = _initialize_domain(
-        domain_name, ontologies, config, llm
+        domain_name, ontologies, config, llm, obs=obs
     )
 
     console.print(f"[green]Ready. Domain: {schema.domain}[/green]\n")
@@ -275,7 +283,7 @@ def main():
                     new_domain = result["switch_to"]
                     console.print(f"[cyan]Switching to domain: {new_domain}...[/cyan]")
                     schema, db_path, class_to_table, ontology_context, agent, rdf_rules = _initialize_domain(
-                        new_domain, ontologies, config, llm
+                        new_domain, ontologies, config, llm, obs=obs
                     )
                     domain_name = new_domain
                     console.print(f"[green]Switched to domain: {domain_name} ({schema.domain})[/green]")

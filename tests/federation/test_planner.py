@@ -115,7 +115,9 @@ def test_plan_federated_cross_engine_two_tables() -> None:
     assert "SUB_0" in final_sql
     assert "SUB_1" in final_sql
     assert "JOIN" in final_sql
-    assert "TOTAL > 100" in final_sql
+    assert "TOTAL > 100" not in final_sql
+    
+    assert "TOTAL > 100" in sql0 or "TOTAL > 100" in sql1
 
 
 def test_plan_federated_preserves_join_type() -> None:
@@ -296,3 +298,111 @@ def test_planner_execute_dispatches_federated_to_joiner() -> None:
         {"name": "Alice", "total": 100},
         {"name": "Bob", "total": 30},
     ]
+
+def test_pushdown_projection_and_predicates_simple() -> None:
+    mappings = {
+        "Customer": PhysicalMapping(physical_table="customers", query_engine="sqlite"),
+        "Order": PhysicalMapping(physical_table="orders", query_engine="starrocks")
+    }
+    provider = MockOntologyProvider(mappings)
+    registry = ExecutorRegistry({
+        "sqlite": FakeExecutor("SQLite"),
+        "starrocks": FakeExecutor("MySQL")
+    })
+    planner = QueryPlanner(ontology=provider, registry=registry)
+    
+    sql = 'SELECT c.name, o.total FROM Customer c JOIN "Order" o ON c.id = o.cust_id WHERE c.region = \'NA\' AND o.total > 20'
+    plan = planner.plan(sql)
+    
+    # Assert sub_0.sql
+    sq0 = plan.sub_queries[0].sql
+    assert "SELECT" in sq0
+    assert "region = 'NA'" in sq0
+    # Must only project id and name
+    assert "*" not in sq0
+    assert "id" in sq0
+    assert "name" in sq0
+    assert "region" not in sq0.split("FROM")[0] # region shouldn't be projected just because it's in WHERE
+    
+    # Assert sub_1.sql
+    sq1 = plan.sub_queries[1].sql
+    assert "total > 20" in sq1
+    assert "*" not in sq1
+    assert "cust_id" in sq1
+    assert "total" in sq1.split("FROM")[0] # total is in SELECT list, so it MUST be in projection
+    
+    # Assert final_sql
+    final_sql = plan.join_spec.final_sql
+    assert "region" not in final_sql
+    assert "total > 20" not in final_sql
+    assert "sub_0.name" in final_sql
+    assert "sub_1.total" in final_sql
+    assert "sub_0.id = sub_1.cust_id" in final_sql
+
+def test_pushdown_cross_side_predicate_stays_in_final() -> None:
+    mappings = {
+        "Customer": PhysicalMapping(physical_table="customers", query_engine="sqlite"),
+        "Order": PhysicalMapping(physical_table="orders", query_engine="starrocks")
+    }
+    provider = MockOntologyProvider(mappings)
+    registry = ExecutorRegistry({
+        "sqlite": FakeExecutor("SQLite"),
+        "starrocks": FakeExecutor("MySQL")
+    })
+    planner = QueryPlanner(ontology=provider, registry=registry)
+    
+    sql = 'SELECT c.name, o.total FROM Customer c JOIN "Order" o ON c.id = o.cust_id WHERE c.country = o.ship_country'
+    plan = planner.plan(sql)
+    
+    sq0 = plan.sub_queries[0].sql
+    assert "country = ship_country" not in sq0
+    
+    final_sql = plan.join_spec.final_sql
+    assert "sub_0.country = sub_1.ship_country" in final_sql
+
+def test_pushdown_or_predicate_kept_atomic() -> None:
+    mappings = {
+        "Customer": PhysicalMapping(physical_table="customers", query_engine="sqlite"),
+        "Order": PhysicalMapping(physical_table="orders", query_engine="starrocks")
+    }
+    provider = MockOntologyProvider(mappings)
+    registry = ExecutorRegistry({
+        "sqlite": FakeExecutor("SQLite"),
+        "starrocks": FakeExecutor("MySQL")
+    })
+    planner = QueryPlanner(ontology=provider, registry=registry)
+    
+    sql = 'SELECT c.name, o.total FROM Customer c JOIN "Order" o ON c.id = o.cust_id WHERE (c.region = \'NA\' OR c.tier = \'gold\')'
+    plan = planner.plan(sql)
+    
+    sq0 = plan.sub_queries[0].sql
+    assert "region = 'NA' OR tier = 'gold'" in sq0
+    
+    final_sql = plan.join_spec.final_sql
+    assert "region" not in final_sql
+    assert "tier" not in final_sql
+
+def test_pushdown_unqualified_column_falls_back_to_select_star(caplog) -> None:
+    import logging
+    caplog.set_level(logging.INFO)
+    
+    mappings = {
+        "Customer": PhysicalMapping(physical_table="customers", query_engine="sqlite"),
+        "Order": PhysicalMapping(physical_table="orders", query_engine="starrocks")
+    }
+    provider = MockOntologyProvider(mappings)
+    registry = ExecutorRegistry({
+        "sqlite": FakeExecutor("SQLite"),
+        "starrocks": FakeExecutor("MySQL")
+    })
+    planner = QueryPlanner(ontology=provider, registry=registry)
+    
+    sql = 'SELECT c.name, o.total FROM Customer c JOIN "Order" o ON c.id = o.cust_id WHERE status = \'active\''
+    plan = planner.plan(sql)
+    
+    sq0 = plan.sub_queries[0].sql
+    assert "SELECT *" in sq0
+    
+    # Check that logger.info was emitted
+    assert "Unqualified columns found in query, falling back to SELECT * for both sides" in caplog.text
+

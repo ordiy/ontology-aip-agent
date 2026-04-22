@@ -118,6 +118,34 @@ class ObservabilityClient:
             finally:
                 self._langfuse.flush()
 
+    @contextmanager
+    def start_span(
+        self,
+        name: str,
+        input: Any = None,
+        metadata: dict | None = None,
+    ) -> Generator[Any, None, None]:
+        """Yield a child span observation; yields None when obs is disabled.
+
+        Intended for instrumenting non-LLM work (e.g. federation sub-queries)
+        inside an active start_trace() context. Auto-nests via OTel context.
+        """
+        if not self._enabled or self._langfuse is None:
+            yield None
+            return
+
+        with self._langfuse.start_as_current_observation(
+            name=name,
+            as_type="span",
+            input=input,
+            metadata=metadata or {},
+        ) as span:
+            try:
+                yield span
+            except Exception as exc:
+                span.update(level="ERROR", status_message=str(exc))
+                raise
+
     def get_handler(
         self,
         session_id: str,

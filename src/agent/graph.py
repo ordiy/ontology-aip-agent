@@ -110,14 +110,22 @@ def build_graph(
     executors: dict[str, BaseExecutor] | BaseExecutor,
     ontology: OntologyProvider,
     default_engine: str = "sqlite",
+    federation_config: dict | None = None,
+    obs: object | None = None,
 ):
     ctx = ontology.context
-    
+
     if isinstance(executors, BaseExecutor):
         executors = {default_engine: executors}
-        
+
     registry = ExecutorRegistry(executors, default_engine=default_engine)
-    planner = QueryPlanner(ontology=ontology, registry=registry)
+    join_row_limit = (federation_config or {}).get("join_row_limit")
+    planner = QueryPlanner(
+        ontology=ontology,
+        registry=registry,
+        join_row_limit=join_row_limit,
+        obs=obs,
+    )
     
     # Capture dialect once so the generate_sql closure uses the right SQL syntax.
     # When a future StarRocksExecutor is plugged in, its dialect property will
