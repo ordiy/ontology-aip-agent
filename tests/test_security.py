@@ -780,3 +780,199 @@ class TestRDFSecurityAnnotations:
         product_mapping = ctx.physical_mappings.get("Product")
         if product_mapping:
             assert product_mapping.policy is None, "Product should have no security policy"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _finalize_pending: NEEDS_USER_APPROVAL audit trail
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class RecordingAuditLogger(NullAuditLogger):
+    """In-memory audit logger that records every emitted event (test-only)."""
+
+    def __init__(self) -> None:
+        self.events: list[AuditEvent] = []
+
+    def emit(self, event: AuditEvent) -> None:
+        self.events.append(event)
+
+
+class TestFinalizePending:
+    """Unit tests for _finalize_pending called directly."""
+
+    def _make_security(self) -> tuple[RecordingAuditLogger, SecurityContext]:
+        recorder = RecordingAuditLogger()
+        security = SecurityContext(
+            principal_provider=EnvPrincipalProvider(),
+            policy=NullPolicyEngine(),
+            audit=recorder,
+        )
+        return recorder, security
+
+    def test_emits_exactly_one_event(self) -> None:
+        from src.agent.graph import _finalize_pending
+
+        recorder, security = self._make_security()
+        state = {
+            "intent": "WRITE",
+            "generated_sql": "INSERT INTO orders VALUES (1)",
+            "auth_decision": AuthDecision(
+                outcome=AuthOutcome.NEEDS_USER_APPROVAL, reason="awaiting_approval"
+            ),
+        }
+        result = _finalize_pending(state, security)
+
+        assert result == {}
+        assert len(recorder.events) == 1
+
+    def test_event_outcome_is_needs_user_approval(self) -> None:
+        from src.agent.graph import _finalize_pending
+
+        recorder, security = self._make_security()
+        state = {
+            "intent": "WRITE",
+            "sql_original": "INSERT INTO orders VALUES (1)",
+            "auth_decision": AuthDecision(
+                outcome=AuthOutcome.NEEDS_USER_APPROVAL, reason="awaiting_approval"
+            ),
+        }
+        _finalize_pending(state, security)
+
+        event = recorder.events[0]
+        assert event.decision.outcome == AuthOutcome.NEEDS_USER_APPROVAL
+
+    def test_event_error_and_row_count_are_none(self) -> None:
+        from src.agent.graph import _finalize_pending
+
+        recorder, security = self._make_security()
+        state = {
+            "intent": "WRITE",
+            "sql_original": "DELETE FROM orders WHERE id=1",
+            "auth_decision": AuthDecision(
+                outcome=AuthOutcome.NEEDS_USER_APPROVAL, reason="awaiting_approval"
+            ),
+        }
+        _finalize_pending(state, security)
+
+        event = recorder.events[0]
+        assert event.error is None
+        assert event.row_count is None
+
+    def test_sql_original_preferred_over_generated_sql(self) -> None:
+        from src.agent.graph import _finalize_pending
+
+        recorder, security = self._make_security()
+        state = {
+            "intent": "WRITE",
+            "sql_original": "DELETE FROM orders WHERE id=1",
+            "generated_sql": "something_else",
+            "auth_decision": AuthDecision(
+                outcome=AuthOutcome.NEEDS_USER_APPROVAL, reason="awaiting_approval"
+            ),
+        }
+        _finalize_pending(state, security)
+
+        event = recorder.events[0]
+        assert event.sql_original == "DELETE FROM orders WHERE id=1"
+
+    def test_returns_empty_dict_state_noop(self) -> None:
+        from src.agent.graph import _finalize_pending
+
+        _, security = self._make_security()
+        state = {
+            "intent": "WRITE",
+            "auth_decision": AuthDecision(
+                outcome=AuthOutcome.NEEDS_USER_APPROVAL, reason="awaiting_approval"
+            ),
+        }
+        result = _finalize_pending(state, security)
+        assert result == {}
+
+
+class TestAuthorizeNeedsApprovalAudit:
+    """Integration test: NEEDS_USER_APPROVAL path emits audit via graph."""
+
+    def _build_fake_ontology(self) -> object:
+        from src.ontology.provider import OntologyContext, OntologyProvider
+
+        ctx = OntologyContext(schema_for_llm="", rules={}, physical_mappings={})
+
+        class _FakeProvider(OntologyProvider):
+            @property
+            def context(self) -> OntologyContext:
+                return ctx
+
+            def load(self) -> OntologyContext:
+                return ctx
+
+        return _FakeProvider()
+
+    def test_needs_user_approval_emits_audit(self) -> None:
+        """End-to-end: graph run with NEEDS_USER_APPROVAL records one audit event."""
+        from src.agent.graph import build_graph
+        from src.database.executor import BaseExecutor, SQLResult
+
+        # --- Fake LLM: classify → WRITE, generate_sql → INSERT ---
+        class _FakeLLM:
+            _calls: int = 0
+
+            def chat(
+                self,
+                messages: list[dict],
+                system_prompt: str | None = None,
+                temperature: float = 0.0,
+            ) -> str:
+                self._calls += 1
+                if self._calls == 1:
+                    return "WRITE"
+                return "INSERT INTO orders (id) VALUES (99)"
+
+            def get_model_name(self) -> str:
+                return "fake-model"
+
+        # --- Fake policy engine: always returns NEEDS_USER_APPROVAL ---
+        class _ApprovalPolicyEngine:
+            def authorize(self, principal, sql, entities):  # noqa: ANN001
+                return AuthDecision(
+                    outcome=AuthOutcome.NEEDS_USER_APPROVAL,
+                    reason="awaiting_approval",
+                    rewritten_sql=None,
+                    masked_columns={},
+                )
+
+        class _FakeExecutor(BaseExecutor):
+            @property
+            def dialect(self) -> str:
+                return "sqlite"
+
+            def execute(self, sql: str, approved: bool = False) -> SQLResult:
+                return SQLResult(
+                    operation="write",
+                    rows=[],
+                    affected_rows=0,
+                    needs_approval=True,
+                )
+
+        recorder = RecordingAuditLogger()
+        security = SecurityContext(
+            principal_provider=EnvPrincipalProvider(),
+            policy=_ApprovalPolicyEngine(),
+            audit=recorder,
+        )
+
+        ontology = self._build_fake_ontology()
+        graph = build_graph(
+            llm=_FakeLLM(),
+            executors=_FakeExecutor(),
+            ontology=ontology,
+            security=security,
+        )
+
+        graph.invoke({"user_query": "insert a new order"})
+
+        # Exactly one audit event; correct outcome; metadata clean
+        assert len(recorder.events) == 1, f"Expected 1 audit event, got {len(recorder.events)}"
+        event = recorder.events[0]
+        assert event.decision.outcome == AuthOutcome.NEEDS_USER_APPROVAL
+        assert event.error is None
+        assert event.row_count is None

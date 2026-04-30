@@ -177,6 +177,56 @@ def _finalize_deny(state: AgentState, security: SecurityContext) -> dict:
     return {"response": f"Access denied: {reason}"}
 
 
+def _finalize_pending(state: AgentState, security: SecurityContext) -> dict:
+    """Emit audit for a request paused awaiting user approval.
+
+    Records an ``AuditEvent`` with the NEEDS_USER_APPROVAL decision so the
+    compliance trail captures which requests were paused.  No row data is
+    included; ``row_count`` and ``error`` are always ``None``.
+
+    Args:
+        state: Current agent state (must contain ``auth_decision`` and
+               optionally ``sql_original`` / ``generated_sql``).
+        security: Security context for audit emission.
+
+    Returns:
+        Empty dict — this node has no state side-effects beyond the audit
+        side-effect on the logger.
+    """
+    try:
+        from datetime import datetime, timezone
+
+        from src.security.audit import AuditEvent
+        from src.security.policy import AuthDecision, AuthOutcome
+
+        principal = state.get("principal")
+        if principal is None:
+            principal = security.principal_provider.get()
+
+        auth_decision = state.get("auth_decision") or AuthDecision(
+            outcome=AuthOutcome.NEEDS_USER_APPROVAL, reason="awaiting_approval"
+        )
+        event = AuditEvent(
+            timestamp=datetime.now(tz=timezone.utc),
+            principal=principal,
+            intent=state.get("intent", "UNKNOWN"),
+            sql_original=state.get("sql_original") or state.get("generated_sql"),
+            sql_rewritten=None,
+            referenced_entities=[],
+            decision=auth_decision,
+            row_count=None,
+            error=None,
+            trace_id=None,
+        )
+        security.audit.emit(event)
+    except Exception as exc:  # noqa: BLE001
+        import logging
+
+        logging.getLogger(__name__).warning("Failed to emit pending audit event: %s", exc)
+
+    return {}
+
+
 def build_graph(
     llm: LLMClient,
     executors: dict[str, BaseExecutor] | BaseExecutor,
@@ -222,6 +272,7 @@ def build_graph(
     graph.add_node("authorize", lambda state: authorize_node(state, security))
     graph.add_node("execute_sql", lambda state: execute_sql_node(state, planner, security))
     graph.add_node("deny", lambda state: _finalize_deny(state, security))
+    graph.add_node("needs_approval_audit", lambda state: _finalize_pending(state, security))
     graph.add_node("format_result", lambda state: format_result(state, llm))
     graph.add_node("clarify", lambda state: clarify_question(state, llm))
     graph.add_node("give_up", lambda state: {"response": "I'm unable to understand your request after multiple attempts. Please try rephrasing, or use .tables to see available data."})
@@ -280,9 +331,10 @@ def build_graph(
     graph.add_conditional_edges("authorize", _route_after_authorize, {
         "execute_sql": "execute_sql",
         "deny": "deny",
-        "needs_user_approval": END,
+        "needs_user_approval": "needs_approval_audit",
     })
     graph.add_edge("deny", END)
+    graph.add_edge("needs_approval_audit", END)
     graph.add_conditional_edges("execute_sql", _route_after_execute, {
         "format_result": "format_result",
         "apply_decision": "apply_decision",
