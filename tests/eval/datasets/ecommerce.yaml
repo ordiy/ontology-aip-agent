@@ -1,0 +1,323 @@
+# ecommerce smoke dataset — 30 cases
+# Entities: buyers, products, carts, orders, reviews
+# Columns:
+#   buyers: buyerId, email, memberSince, loyaltyTier, totalSpent
+#   products: sku, name, category, price, stockQty
+#   carts: cartId, createdAt, itemCount, subtotal
+#   orders: orderId, orderDate, status, total, shippingMethod
+#   reviews: reviewId, rating, title, body, verified
+
+# ── READ (12) ─────────────────────────────────────────────────────────────────
+
+- id: ecommerce-001
+  question: How many buyers are registered in the system?
+  domain: ecommerce
+  expected_intent: READ
+  expected:
+    kind: sql_equivalent
+    expected_sql: |
+      SELECT COUNT(*) AS count
+      FROM buyers
+  tags: [smoke, baseline]
+
+- id: ecommerce-002
+  question: Show me the top 5 buyers by total spend
+  domain: ecommerce
+  expected_intent: READ
+  expected:
+    kind: sql_equivalent
+    expected_sql: |
+      SELECT buyerId, email, totalSpent
+      FROM buyers
+      ORDER BY totalSpent DESC
+      LIMIT 5
+  tags: [smoke]
+
+- id: ecommerce-003
+  question: List all products in the Electronics category
+  domain: ecommerce
+  expected_intent: READ
+  expected:
+    kind: sql_equivalent
+    expected_sql: |
+      SELECT sku, name, price, stockQty
+      FROM products
+      WHERE category = 'Electronics'
+  tags: [smoke]
+
+- id: ecommerce-004
+  question: What is the average total of all orders?
+  domain: ecommerce
+  expected_intent: READ
+  expected:
+    kind: sql_equivalent
+    expected_sql: |
+      SELECT AVG(total) AS avg_order_total
+      FROM orders
+  tags: [smoke, baseline]
+
+- id: ecommerce-005
+  question: Show all orders that are currently in pending status
+  domain: ecommerce
+  expected_intent: READ
+  expected:
+    kind: sql_equivalent
+    expected_sql: |
+      SELECT orderId, orderDate, total, shippingMethod
+      FROM orders
+      WHERE status = 'pending'
+  tags: [smoke]
+
+- id: ecommerce-006
+  question: Which products have fewer than 5 items left in stock?
+  domain: ecommerce
+  expected_intent: READ
+  expected:
+    kind: sql_equivalent
+    expected_sql: |
+      SELECT sku, name, category, price, stockQty
+      FROM products
+      WHERE stockQty < 5
+  tags: [smoke, regression]
+
+- id: ecommerce-007
+  question: Show buyers who have a Gold or Platinum loyalty tier
+  domain: ecommerce
+  expected_intent: READ
+  expected:
+    kind: sql_equivalent
+    expected_sql: |
+      SELECT buyerId, email, loyaltyTier, totalSpent
+      FROM buyers
+      WHERE loyaltyTier IN ('Gold', 'Platinum')
+  tags: [smoke]
+
+- id: ecommerce-008
+  question: What are the top 3 product categories ranked by total revenue?
+  domain: ecommerce
+  expected_intent: READ
+  expected:
+    kind: sql_equivalent
+    expected_sql: |
+      SELECT p.category, SUM(p.price) AS total_revenue
+      FROM products p
+      GROUP BY p.category
+      ORDER BY total_revenue DESC
+      LIMIT 3
+  tags: [smoke]
+
+- id: ecommerce-009
+  question: How many orders were placed in the last 30 days?
+  domain: ecommerce
+  expected_intent: READ
+  expected:
+    kind: intent_only
+    expected_intent: READ
+  tags: [smoke]
+
+- id: ecommerce-010
+  question: Which products cost more than $100?
+  domain: ecommerce
+  expected_intent: READ
+  expected:
+    kind: substring_contains
+    must_contain: [price, products]
+  tags: [smoke]
+
+- id: ecommerce-011
+  question: Who is our highest-spending buyer?
+  domain: ecommerce
+  expected_intent: READ
+  expected:
+    kind: substring_contains
+    must_contain: [buyer, total]
+  tags: [smoke]
+
+- id: ecommerce-012
+  question: Show all 5-star reviews posted this month
+  domain: ecommerce
+  expected_intent: READ
+  expected:
+    kind: substring_contains
+    must_contain: [rating, review]
+  tags: [smoke]
+
+# ── WRITE (4) ─────────────────────────────────────────────────────────────────
+
+- id: ecommerce-013
+  question: Update the price of product SKU ABC-1234 to 29.99
+  domain: ecommerce
+  expected_intent: WRITE
+  expected:
+    kind: intent_only
+    expected_intent: WRITE
+  tags: [smoke]
+
+- id: ecommerce-014
+  question: Mark order ORD-9876 as shipped
+  domain: ecommerce
+  expected_intent: WRITE
+  expected:
+    kind: intent_only
+    expected_intent: WRITE
+  tags: [smoke]
+
+- id: ecommerce-015
+  question: Delete all unverified reviews with a 1-star rating
+  domain: ecommerce
+  expected_intent: WRITE
+  expected:
+    kind: intent_only
+    expected_intent: WRITE
+  tags: [smoke, security]
+
+- id: ecommerce-016
+  question: Insert a new product named Wireless Mouse in the Electronics category with price 49.99 and 200 units in stock
+  domain: ecommerce
+  expected_intent: WRITE
+  expected:
+    kind: intent_only
+    expected_intent: WRITE
+  tags: [smoke]
+
+# ── ANALYZE (6) ───────────────────────────────────────────────────────────────
+
+- id: ecommerce-017
+  question: Compare total revenue by month for the current year
+  domain: ecommerce
+  expected_intent: ANALYZE
+  expected:
+    kind: intent_only
+    expected_intent: ANALYZE
+  tags: [smoke]
+
+- id: ecommerce-018
+  question: What is the trend in average order value over the past quarter?
+  domain: ecommerce
+  expected_intent: ANALYZE
+  expected:
+    kind: llm_judge
+    rubric: |
+      The response should describe a temporal trend in average order value.
+      It must mention at least one time period (e.g. month or week),
+      state whether the trend is increasing, decreasing, or flat,
+      and cite specific numeric values to support the claim.
+  tags: [smoke]
+
+- id: ecommerce-019
+  question: Break down order count by the loyalty tier of the buyer
+  domain: ecommerce
+  expected_intent: ANALYZE
+  expected:
+    kind: intent_only
+    expected_intent: ANALYZE
+  tags: [smoke]
+
+- id: ecommerce-020
+  question: Which product category has the highest average review rating?
+  domain: ecommerce
+  expected_intent: ANALYZE
+  expected:
+    kind: intent_only
+    expected_intent: ANALYZE
+  tags: [smoke]
+
+- id: ecommerce-021
+  question: Identify buyers who are at risk of churning — no order placed in the last 90 days
+  domain: ecommerce
+  expected_intent: ANALYZE
+  expected:
+    kind: llm_judge
+    rubric: |
+      The response should identify buyers with no recent orders.
+      It must define the inactivity threshold (90 days),
+      list or count the at-risk buyers,
+      and optionally suggest a retention action.
+  tags: [smoke, regression]
+
+- id: ecommerce-022
+  question: How does the cart abandonment rate compare between high-value and standard buyers?
+  domain: ecommerce
+  expected_intent: ANALYZE
+  expected:
+    kind: intent_only
+    expected_intent: ANALYZE
+  tags: [smoke]
+
+# ── DECIDE (4) ────────────────────────────────────────────────────────────────
+
+- id: ecommerce-023
+  question: Which orders should be flagged for potential fraud review?
+  domain: ecommerce
+  expected_intent: DECIDE
+  expected:
+    kind: intent_only
+    expected_intent: DECIDE
+  tags: [smoke, security]
+
+- id: ecommerce-024
+  question: Which buyers should be upgraded to VIP status based on their spending and loyalty tier?
+  domain: ecommerce
+  expected_intent: DECIDE
+  expected:
+    kind: substring_contains
+    must_contain: [buyer, loyalty, vip]
+  tags: [smoke]
+
+- id: ecommerce-025
+  question: Should we restock product SKU XYZ-0001 given current stock levels and recent sales velocity?
+  domain: ecommerce
+  expected_intent: DECIDE
+  expected:
+    kind: intent_only
+    expected_intent: DECIDE
+  tags: [smoke]
+
+- id: ecommerce-026
+  question: Which unpaid orders from more than 3 days ago should be automatically cancelled?
+  domain: ecommerce
+  expected_intent: DECIDE
+  expected:
+    kind: intent_only
+    expected_intent: DECIDE
+  tags: [smoke]
+
+# ── OPERATE (2) ───────────────────────────────────────────────────────────────
+
+- id: ecommerce-027
+  question: Cancel all shopping carts that have been idle for more than 7 days
+  domain: ecommerce
+  expected_intent: OPERATE
+  expected:
+    kind: intent_only
+    expected_intent: OPERATE
+  tags: [smoke]
+
+- id: ecommerce-028
+  question: Send refund notification emails for all orders marked as refunded this week
+  domain: ecommerce
+  expected_intent: OPERATE
+  expected:
+    kind: intent_only
+    expected_intent: OPERATE
+  tags: [smoke]
+
+# ── UNCLEAR (2) ───────────────────────────────────────────────────────────────
+
+- id: ecommerce-029
+  question: What about him?
+  domain: ecommerce
+  expected_intent: UNCLEAR
+  expected:
+    kind: intent_only
+    expected_intent: UNCLEAR
+  tags: [smoke, edge-case]
+
+- id: ecommerce-030
+  question: Make it better
+  domain: ecommerce
+  expected_intent: UNCLEAR
+  expected:
+    kind: intent_only
+    expected_intent: UNCLEAR
+  tags: [smoke, edge-case]
