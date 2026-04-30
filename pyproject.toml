@@ -18,6 +18,7 @@ dependencies = [
     "langfuse>=2.0.0",
     "sqlglot>=25.0.0",
     "duckdb>=1.0.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]
