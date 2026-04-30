@@ -1,4 +1,11 @@
-from typing import TypedDict
+from __future__ import annotations
+
+from typing import Any, TypedDict
+
+# Imported directly (not under TYPE_CHECKING) so LangGraph's get_type_hints()
+# can resolve them when building the StateGraph channel map.
+from src.security.policy import AuthDecision
+from src.security.principal import Principal
 
 
 class AgentState(TypedDict, total=False):
@@ -29,3 +36,9 @@ class AgentState(TypedDict, total=False):
     operation_results: list[dict] # per-step execution results
     rollback_stack: list[dict]    # [{step_name, rollback_sql}] for completed write steps
     current_op_index: int         # index into operation_plan for step-by-step execution
+
+    # Security / RBAC fields (Phase A)
+    principal: Any           # Principal | None — resolved by PrincipalProvider at entry; read-only downstream
+    auth_decision: Any       # AuthDecision | None — written by authorize_node; read by audit/format nodes
+    masked_columns: dict[str, str]       # column → mask method (hash|redact|null); consumed by execute_sql_node
+    sql_original: str | None             # SQL before row-filter rewrite; used for audit records

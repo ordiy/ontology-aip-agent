@@ -2,11 +2,13 @@
 
 Handles the single-query lifecycle:
     load_ontology_context → classify_intent → generate_sql
-    → execute_sql_node → format_result / clarify_question
+    → authorize → execute_sql_node → format_result / clarify_question
 """
 from __future__ import annotations
 
+import hashlib
 import logging
+from datetime import datetime, timezone
 
 from src.agent.nodes._sql_utils import clean_sql, detect_permission_level
 from src.agent.state import AgentState
@@ -156,7 +158,47 @@ def generate_sql(
     return {"generated_sql": sql, "permission_level": permission_level}
 
 
-def execute_sql_node(state: AgentState, planner: QueryPlanner) -> dict:
+def _apply_masked_columns(
+    rows: list[dict],
+    masked_columns: dict[str, str],
+) -> list[dict]:
+    """Apply column-level masking transformations to query result rows.
+
+    Args:
+        rows: Raw rows returned by the executor.
+        masked_columns: Mapping of column name → mask method
+            (``"hash"``, ``"redact"``, or ``"null"``).
+
+    Returns:
+        New list of row dicts with masked column values.
+    """
+    if not masked_columns or not rows:
+        return rows
+
+    def _mask_value(value: object, method: str) -> object:
+        if method == "hash":
+            return hashlib.sha256(str(value).encode()).hexdigest()[:16]
+        if method == "redact":
+            return "***REDACTED***"
+        if method == "null":
+            return None
+        return value  # unknown method → leave unchanged
+
+    result = []
+    for row in rows:
+        new_row = dict(row)
+        for col, method in masked_columns.items():
+            if col in new_row:
+                new_row[col] = _mask_value(new_row[col], method)
+        result.append(new_row)
+    return result
+
+
+def execute_sql_node(
+    state: AgentState,
+    planner: QueryPlanner,
+    security: object | None = None,
+) -> dict:
     """Execute the generated SQL statement.
 
     On SQL syntax/runtime errors (not permission denials), signals the graph
@@ -164,9 +206,13 @@ def execute_sql_node(state: AgentState, planner: QueryPlanner) -> dict:
     Only retries once (``sql_retry_count >= 1`` → propagate error to
     ``format_result``).
 
+    After execution applies ``masked_columns`` post-processing to rows and
+    emits an ``AuditEvent`` via ``security.audit`` (when security is provided).
+
     Args:
         state: Agent state; must contain ``generated_sql``.
         planner: Query planner that resolves and runs the SQL.
+        security: Optional ``SecurityContext`` for audit emission and masking.
 
     Returns:
         Partial state update with query results, error flags, or approval signal.
@@ -175,6 +221,11 @@ def execute_sql_node(state: AgentState, planner: QueryPlanner) -> dict:
     approved = state.get("approved")
     permission_level = state.get("permission_level", "auto")
     retry_count = state.get("sql_retry_count", 0)
+    masked_columns: dict[str, str] = state.get("masked_columns") or {}
+
+    result_rows: list[dict] | None = None
+    row_count: int | None = None
+    exec_error: str | None = None
 
     try:
         plan = planner.plan(sql)
@@ -182,8 +233,10 @@ def execute_sql_node(state: AgentState, planner: QueryPlanner) -> dict:
             plan, approved=(approved is True) or permission_level == "auto"
         )
     except PermissionDenied as exc:
+        exec_error = str(exc)
+        _emit_audit(state, security, sql, row_count=None, error=exec_error)
         return {
-            "error": str(exc),
+            "error": exec_error,
             "query_result": None,
             "affected_rows": 0,
             "sql_error_message": None,
@@ -192,6 +245,7 @@ def execute_sql_node(state: AgentState, planner: QueryPlanner) -> dict:
         error_msg = str(exc)
         logger.warning("SQL execution raised an exception: %s", error_msg)
         if retry_count >= 1:
+            _emit_audit(state, security, sql, row_count=None, error=error_msg)
             return {"error": error_msg, "sql_error_message": None}
         return {
             "sql_error_message": error_msg,
@@ -200,8 +254,8 @@ def execute_sql_node(state: AgentState, planner: QueryPlanner) -> dict:
         }
 
     if result.error:
-        # If this is already a retry, propagate the error — do not retry again.
         if retry_count >= 1:
+            _emit_audit(state, security, sql, row_count=None, error=result.error)
             return {"error": result.error, "sql_error_message": None}
         return {
             "sql_error_message": result.error,
@@ -213,12 +267,65 @@ def execute_sql_node(state: AgentState, planner: QueryPlanner) -> dict:
         return {"approved": None}
 
     rows = result.rows or []
+    rows = _apply_masked_columns(rows, masked_columns)
+    row_count = len(rows)
+    _emit_audit(state, security, sql, row_count=row_count, error=None)
     return {
         "query_result": rows,
         "affected_rows": result.affected_rows,
         "error": None,
         "sql_error_message": None,
     }
+
+
+def _emit_audit(
+    state: AgentState,
+    security: object | None,
+    sql: str,
+    row_count: int | None,
+    error: str | None,
+) -> None:
+    """Emit an AuditEvent via the security context if available.
+
+    Silently skips when security is None or has a NullAuditLogger.
+
+    Args:
+        state: Current agent state (principal, auth_decision, intent, etc.).
+        security: Optional SecurityContext.
+        sql: Executed SQL (post-rewrite).
+        row_count: Number of rows returned, or None.
+        error: Error message on failure, or None.
+    """
+    if security is None:
+        return
+    try:
+        from src.security.audit import AuditEvent
+        from src.security.principal import Principal
+
+        principal = state.get("principal")
+        if principal is None:
+            principal = security.principal_provider.get()
+
+        auth_decision = state.get("auth_decision")
+        if auth_decision is None:
+            from src.security.policy import AuthDecision, AuthOutcome
+            auth_decision = AuthDecision(outcome=AuthOutcome.ALLOW, reason="no_auth_decision")
+
+        event = AuditEvent(
+            timestamp=datetime.now(tz=timezone.utc),
+            principal=principal,
+            intent=state.get("intent", "UNKNOWN"),
+            sql_original=state.get("sql_original") or sql,
+            sql_rewritten=sql if state.get("sql_original") and state.get("sql_original") != sql else None,
+            referenced_entities=[],
+            decision=auth_decision,
+            row_count=row_count,
+            error=error,
+            trace_id=None,
+        )
+        security.audit.emit(event)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to emit audit event: %s", exc)
 
 
 def format_result(state: AgentState, llm: LLMClient) -> dict:

@@ -17,6 +17,10 @@ from src.database.mock_data import generate_mock_data
 from src.database.executor import SQLExecutor
 from src.llm.vertex import VertexGeminiClient
 from src.agent.graph import build_graph
+from src.security.context import SecurityContext
+from src.security.principal import EnvPrincipalProvider
+from src.security.policy import NullPolicyEngine, OntologyPolicyEngine
+from src.security.audit import NullAuditLogger, JsonlAuditLogger
 
 console = Console()
 
@@ -81,15 +85,56 @@ def _initialize_domain(domain_name: str, ontologies: dict, config: dict, llm, ob
     ontology_context = generate_context(schema)
     executor = SQLExecutor(db_path, config["permissions"])
     ontology = RDFOntologyProvider([rdf_path], executor_dialect=executor.dialect)
+
+    # Build SecurityContext from config
+    security_cfg = config.get("security", {})
+    security = _build_security_context(security_cfg, ontology.context)
+
     agent = build_graph(
         llm=llm,
         executors=executor,
         ontology=ontology,
         federation_config=config.get("federation"),
         obs=obs,
+        security=security,
     )
 
     return schema, db_path, class_to_table, ontology_context, agent, schema.rules
+
+
+def _build_security_context(security_cfg: dict, ontology_ctx: object) -> SecurityContext:
+    """Build a SecurityContext from the ``security`` config block.
+
+    Args:
+        security_cfg: The ``config["security"]`` dict (may be empty).
+        ontology_ctx: Loaded OntologyContext for OntologyPolicyEngine.
+
+    Returns:
+        A configured ``SecurityContext``.
+    """
+    from pathlib import Path as _Path
+
+    policy_type = (security_cfg.get("policy") or "").lower()
+    if policy_type == "ontology":
+        policy = OntologyPolicyEngine(ontology=ontology_ctx)
+    else:
+        policy = NullPolicyEngine()
+
+    audit_cfg = security_cfg.get("audit") or {}
+    audit_backend = (audit_cfg.get("backend") or "").lower()
+    if audit_backend == "jsonl":
+        audit_path = audit_cfg.get("path", "./logs/audit.jsonl")
+        fail_mode = audit_cfg.get("fail_mode", "open")
+        _Path(audit_path).parent.mkdir(parents=True, exist_ok=True)
+        audit = JsonlAuditLogger(path=audit_path, fail_mode=fail_mode)
+    else:
+        audit = NullAuditLogger()
+
+    return SecurityContext(
+        principal_provider=EnvPrincipalProvider(),
+        policy=policy,
+        audit=audit,
+    )
 
 
 def _handle_system_command(cmd: str, schema, class_to_table: dict, db_path: str, ontologies: dict = None, config: dict = None, llm = None, history: list = None):

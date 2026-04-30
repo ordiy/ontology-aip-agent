@@ -1,13 +1,43 @@
 # src/ontology/provider.py
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from src.ontology.parser import EntityRule
 
+
+@dataclass(frozen=True)
+class SecurityPolicy:
+    """Row-level security and column masking policy attached to a physical entity.
+
+    Attributes:
+        required_roles: Roles the principal must possess to access this entity.
+        row_filter_template: SQL WHERE clause template with ``$principal.*``
+            placeholders.  ``None`` means no row filter is applied.
+        masked_columns: Mapping from column name to mask method
+            (``"hash"``, ``"redact"``, or ``"null"``).
+    """
+
+    required_roles: frozenset[str] = field(default_factory=frozenset)
+    row_filter_template: str | None = None
+    masked_columns: dict[str, str] = field(default_factory=dict)
+
+
 @dataclass
 class PhysicalMapping:
+    """Mapping from an ontology entity to its physical storage target.
+
+    Attributes:
+        physical_table: Fully-qualified or bare physical table name.
+        query_engine: Engine alias (e.g. ``"starrocks"``, ``"sqlite"``).
+        partition_keys: Column names used for partitioning / pushdown.
+        policy: Optional row-level security policy.  ``None`` means no RBAC.
+    """
+
     physical_table: str
     query_engine: str = ""
     partition_keys: list[str] = field(default_factory=list)
+    policy: SecurityPolicy | None = None
 
 @dataclass(frozen=True)
 class VirtualEntity:

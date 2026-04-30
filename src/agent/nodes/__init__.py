@@ -8,6 +8,7 @@ from src.agent.nodes.analyze import (
     plan_analysis,
     synthesize_results,
 )
+from src.agent.nodes.authorize import authorize_node
 from src.agent.nodes.decide_operate import (
     apply_decision,
     execute_operation_step,
@@ -33,6 +34,8 @@ __all__ = [
     "execute_sql_node",
     "format_result",
     "clarify_question",
+    # authorize
+    "authorize_node",
     # analyze
     "plan_analysis",
     "execute_analysis_step",

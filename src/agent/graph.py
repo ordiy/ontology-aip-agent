@@ -2,6 +2,7 @@ from langgraph.graph import END, StateGraph
 
 from src.agent.nodes import (
     apply_decision,
+    authorize_node,
     clarify_question,
     classify_intent,
     execute_analysis_step,
@@ -22,6 +23,8 @@ from src.federation.executor_registry import ExecutorRegistry
 from src.federation.planner import QueryPlanner
 from src.llm.base import LLMClient
 from src.ontology.provider import OntologyProvider
+from src.security.context import SecurityContext
+from src.security.policy import AuthOutcome
 
 
 def _route_after_intent(state: AgentState) -> str:
@@ -105,6 +108,75 @@ def _route_after_op_step(state: AgentState) -> str:
     return "synthesize"
 
 
+def _route_after_authorize(state: AgentState) -> str:
+    """Route after authorisation evaluation.
+
+    - ``execute_sql``: ALLOW outcome — continue with execution.
+    - ``deny``: DENY outcome — emit audit and surface error to user.
+    - ``needs_user_approval``: NEEDS_USER_APPROVAL — hand control back to CLI/Web.
+
+    Args:
+        state: Current agent state containing ``auth_decision``.
+
+    Returns:
+        One of ``"execute_sql"``, ``"deny"``, or ``"needs_user_approval"``.
+    """
+    auth_decision = state.get("auth_decision")
+    if auth_decision is None:
+        return "execute_sql"
+    outcome = auth_decision.outcome
+    if outcome == AuthOutcome.ALLOW:
+        return "execute_sql"
+    if outcome == AuthOutcome.DENY:
+        return "deny"
+    return "needs_user_approval"
+
+
+def _finalize_deny(state: AgentState, security: SecurityContext) -> dict:
+    """Emit audit for a denied request and produce a user-facing response.
+
+    Args:
+        state: Current agent state (must contain ``error`` and ``auth_decision``).
+        security: Security context for audit emission.
+
+    Returns:
+        Partial state update setting ``response``.
+    """
+    reason = state.get("error", "access_denied")
+    try:
+        from datetime import datetime, timezone
+
+        from src.security.audit import AuditEvent
+        from src.security.policy import AuthDecision, AuthOutcome
+
+        principal = state.get("principal")
+        if principal is None:
+            principal = security.principal_provider.get()
+
+        auth_decision = state.get("auth_decision") or AuthDecision(
+            outcome=AuthOutcome.DENY, reason=reason
+        )
+        event = AuditEvent(
+            timestamp=datetime.now(tz=timezone.utc),
+            principal=principal,
+            intent=state.get("intent", "UNKNOWN"),
+            sql_original=state.get("sql_original") or state.get("generated_sql"),
+            sql_rewritten=None,
+            referenced_entities=[],
+            decision=auth_decision,
+            row_count=None,
+            error=reason,
+            trace_id=None,
+        )
+        security.audit.emit(event)
+    except Exception as exc:  # noqa: BLE001
+        import logging
+
+        logging.getLogger(__name__).warning("Failed to emit deny audit event: %s", exc)
+
+    return {"response": f"Access denied: {reason}"}
+
+
 def build_graph(
     llm: LLMClient,
     executors: dict[str, BaseExecutor] | BaseExecutor,
@@ -112,8 +184,13 @@ def build_graph(
     default_engine: str = "sqlite",
     federation_config: dict | None = None,
     obs: object | None = None,
+    security: SecurityContext | None = None,
 ):
     ctx = ontology.context
+
+    # Default to no-op security when not provided — preserves backward compatibility.
+    if security is None:
+        security = SecurityContext.null()
 
     if isinstance(executors, BaseExecutor):
         executors = {default_engine: executors}
@@ -142,7 +219,9 @@ def build_graph(
     })
     graph.add_node("classify_intent", lambda state: classify_intent(state, llm))
     graph.add_node("generate_sql", lambda state: generate_sql(state, llm, db_dialect=db_dialect))
-    graph.add_node("execute_sql", lambda state: execute_sql_node(state, planner))
+    graph.add_node("authorize", lambda state: authorize_node(state, security))
+    graph.add_node("execute_sql", lambda state: execute_sql_node(state, planner, security))
+    graph.add_node("deny", lambda state: _finalize_deny(state, security))
     graph.add_node("format_result", lambda state: format_result(state, llm))
     graph.add_node("clarify", lambda state: clarify_question(state, llm))
     graph.add_node("give_up", lambda state: {"response": "I'm unable to understand your request after multiple attempts. Please try rephrasing, or use .tables to see available data."})
@@ -197,7 +276,13 @@ def build_graph(
     })
     graph.add_edge("rollback", END)
 
-    graph.add_edge("generate_sql", "execute_sql")
+    graph.add_edge("generate_sql", "authorize")
+    graph.add_conditional_edges("authorize", _route_after_authorize, {
+        "execute_sql": "execute_sql",
+        "deny": "deny",
+        "needs_user_approval": END,
+    })
+    graph.add_edge("deny", END)
     graph.add_conditional_edges("execute_sql", _route_after_execute, {
         "format_result": "format_result",
         "apply_decision": "apply_decision",

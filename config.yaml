@@ -51,3 +51,10 @@ langfuse:
   secret_key: ${LANGFUSE_SECRET_KEY:-}   # set LANGFUSE_SECRET_KEY env var or use config.local.yaml
   host: https://cloud.langfuse.com   # 自托管时改为内网地址
   project: ontology-aip-agent
+
+security:
+  policy: null      # null | ontology  (only ontology supported in Phase A; OPA reserved for Phase B)
+  audit:
+    backend: null   # null | jsonl     (only jsonl supported in Phase A; postgres reserved for Phase B)
+    path: ./logs/audit.jsonl
+    fail_mode: open # open | closed    (closed is REQUIRED for production deployments)

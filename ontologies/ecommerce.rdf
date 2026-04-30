@@ -26,6 +26,9 @@
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#isVirtual"/>
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#basedOn"/>
     <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#filter"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#requiresRole"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#rowFilter"/>
+    <owl:AnnotationProperty rdf:about="http://aip.example.org/rules#maskColumns"/>
 
     <!-- ===================== -->
     <!-- Entity Types (Classes) -->
@@ -77,6 +80,9 @@
         <aip:physicalTable>iceberg_catalog.ecommerce.orders</aip:physicalTable>
         <aip:queryEngine>starrocks</aip:queryEngine>
         <aip:partitionKeys>orderDate</aip:partitionKeys>
+        <aip:requiresRole>analyst</aip:requiresRole>
+        <aip:rowFilter>tenant_id = $principal.tenant_id</aip:rowFilter>
+        <aip:maskColumns>email:hash,ssn:redact</aip:maskColumns>
     </owl:Class>
 
     <owl:Class rdf:about="http://example.org/ontology/e-commerce-platform/HighValueOrder">

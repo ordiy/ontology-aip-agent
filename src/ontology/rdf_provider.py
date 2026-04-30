@@ -1,7 +1,7 @@
 import logging
 
 from rdflib import Graph, Namespace, RDF, OWL, RDFS
-from src.ontology.provider import OntologyProvider, OntologyContext, PhysicalMapping, VirtualEntity
+from src.ontology.provider import OntologyProvider, OntologyContext, PhysicalMapping, SecurityPolicy, VirtualEntity
 from src.ontology.parser import parse_ontology, OntologySchema
 from src.ontology.context import table_name as _sqlite_table_name
 
@@ -52,11 +52,40 @@ class RDFOntologyProvider(OntologyProvider):
             partition_keys_raw = str(g.value(s, AIP.partitionKeys) or "")
             partition_keys = [k.strip() for k in partition_keys_raw.split(",") if k.strip()]
 
+            # ── Security policy annotations ──────────────────────────────────
+            policy: SecurityPolicy | None = None
+            required_roles_raw = str(g.value(s, AIP.requiresRole) or "")
+            row_filter = g.value(s, AIP.rowFilter)
+            mask_columns_raw = str(g.value(s, AIP.maskColumns) or "")
+
+            # Collect all requiresRole triples (may be multi-valued)
+            role_set: frozenset[str] = frozenset(
+                str(o).strip()
+                for _, _, o in g.triples((s, AIP.requiresRole, None))
+                if str(o).strip()
+            )
+            row_filter_str: str | None = str(row_filter) if row_filter else None
+            masked_columns: dict[str, str] = {}
+            if mask_columns_raw.strip():
+                for pair in mask_columns_raw.split(","):
+                    pair = pair.strip()
+                    if ":" in pair:
+                        col, method = pair.split(":", 1)
+                        masked_columns[col.strip()] = method.strip()
+
+            if role_set or row_filter_str or masked_columns:
+                policy = SecurityPolicy(
+                    required_roles=role_set,
+                    row_filter_template=row_filter_str,
+                    masked_columns=masked_columns,
+                )
+
             if physical_table or query_engine or partition_keys:
                 physical_mappings[entity_name] = PhysicalMapping(
                     physical_table=physical_table,
                     query_engine=query_engine,
                     partition_keys=partition_keys,
+                    policy=policy,
                 )
 
         virtual_entities = self._load_virtual_entities(g, class_uris)

@@ -32,6 +32,10 @@ from src.database.mock_data import generate_mock_data
 from src.database.executor import SQLExecutor
 from src.agent.graph import build_graph
 from src.observability import ObservabilityClient
+from src.security.context import SecurityContext
+from src.security.principal import StreamlitSessionPrincipalProvider
+from src.security.policy import NullPolicyEngine, OntologyPolicyEngine
+from src.security.audit import NullAuditLogger, JsonlAuditLogger
 
 
 # ─────────────────────────────────────────────
@@ -149,9 +153,49 @@ def _load_domain(domain_name: str, rdf_path: str, config: dict):
     executor = SQLExecutor(db_path, config["permissions"])
     ontology_context = generate_context(schema)
     ontology = RDFOntologyProvider([rdf_path], executor_dialect=executor.dialect)
-    agent = build_graph(llm, executor, ontology, federation_config=config.get("federation"), obs=obs)
+
+    # Build SecurityContext from config (uses StreamlitSession provider for Web)
+    security_cfg = config.get("security", {})
+    security = _build_web_security_context(security_cfg, ontology.context)
+
+    agent = build_graph(llm, executor, ontology, federation_config=config.get("federation"), obs=obs, security=security)
 
     return schema, db_path, ontology_context, llm, executor, agent
+
+
+def _build_web_security_context(security_cfg: dict, ontology_ctx: object) -> SecurityContext:
+    """Build a SecurityContext using Streamlit session-based principal for the Web UI.
+
+    Args:
+        security_cfg: The ``config["security"]`` dict (may be empty).
+        ontology_ctx: Loaded OntologyContext for OntologyPolicyEngine.
+
+    Returns:
+        A configured ``SecurityContext`` with ``StreamlitSessionPrincipalProvider``.
+    """
+    from pathlib import Path as _Path
+
+    policy_type = (security_cfg.get("policy") or "").lower()
+    if policy_type == "ontology":
+        policy = OntologyPolicyEngine(ontology=ontology_ctx)
+    else:
+        policy = NullPolicyEngine()
+
+    audit_cfg = security_cfg.get("audit") or {}
+    audit_backend = (audit_cfg.get("backend") or "").lower()
+    if audit_backend == "jsonl":
+        audit_path = audit_cfg.get("path", "./logs/audit.jsonl")
+        fail_mode = audit_cfg.get("fail_mode", "open")
+        _Path(audit_path).parent.mkdir(parents=True, exist_ok=True)
+        audit = JsonlAuditLogger(path=audit_path, fail_mode=fail_mode)
+    else:
+        audit = NullAuditLogger()
+
+    return SecurityContext(
+        principal_provider=StreamlitSessionPrincipalProvider(),
+        policy=policy,
+        audit=audit,
+    )
 
 
 def _display_results(result: dict):
