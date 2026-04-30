@@ -59,14 +59,22 @@ permissions: { read: auto, write: confirm, delete: confirm, admin: deny }
 
 ### 3.2 核心抽象
 
-引入四个新概念，全部位于 `src/security/`：
+引入五个新概念，全部位于 `src/security/`：
 
 | 抽象 | 文件 | 职责 |
 |------|------|------|
 | `Principal` | `principal.py` | 表示「谁在问」：`tenant_id`、`user_id`、`roles`、`attrs`（claims） |
-| `PolicyEngine` | `policy.py` ABC | 决策器：给定 `(principal, resource, action)` → `Allow/Deny/MaskColumns` |
+| `PrincipalProvider` | `principal.py` ABC | 各入口（CLI/Web/API）构造 Principal 的统一抽象 |
+| `PolicyEngine` | `policy.py` ABC | 决策器：给定 `(principal, sql, referenced_entities)` → `AuthDecision` |
 | `AuditLogger` | `audit.py` ABC | 落地 `AuditEvent`（who/when/what/result/sql/row_count） |
-| `SecurityContext` | `context.py` | 把上面三者打包成节点函数能接收的依赖 |
+| `SecurityContext` | `context.py` | 把上面四者打包成节点函数能接收的依赖 |
+
+**MVP `PrincipalProvider` 实现**：
+- `EnvPrincipalProvider`（CLI 默认）：从 `DEFAULT_TENANT_ID` / `USER` 环境变量读
+- `StreamlitSessionPrincipalProvider`（Web）：从 `st.session_state` 读，缺省回退到 env
+- `JWTPrincipalProvider`（占位，Phase A 不做）：未来 REST API 用
+
+**默认 no-op**：`build_graph(policy=None, audit=None)` 在缺省时使用 `NullPolicyEngine`（恒 allow）+ `NullAuditLogger`（丢弃事件）。**这条是死规矩**——否则现有 180 个不构造 Principal 的测试全部要改，会无意义地放大变更面。
 
 ### 3.3 Principal 数据模型
 
@@ -108,6 +116,16 @@ class SecurityPolicy:
 ```
 `PhysicalMapping` 增字段 `policy: SecurityPolicy | None`。
 
+**`row_filter_template` 安全规则**（必须严格遵守，防 SQL 注入）：
+
+1. **白名单的占位语法**：仅以下形式可被解析；其余视为字面字符串：
+   - `$principal.tenant_id`
+   - `$principal.user_id`
+   - `$principal.attrs.<key>`（仅 `[A-Za-z_][A-Za-z0-9_]*` 字符）
+2. **插值方式**：每个占位的值**必须**经 `sqlglot.exp.Literal.string(value)` 序列化为安全字面量后再注入 AST，**禁止字符串拼接**生成最终 SQL
+3. **失败语义**：占位变量在 Principal 中不存在 → `ConfigError`（启动时）或 `AuthDecision(allowed=False, reason=...)`（运行时）
+4. **类型限制**：仅支持字符串/数字 attr；嵌套 dict/list 不能用作行过滤值（避免 JSON 注入）
+
 ### 3.5 PolicyEngine 接口
 
 ```python
@@ -117,22 +135,39 @@ class PolicyEngine(ABC):
         self,
         principal: Principal,
         sql: str,
-        plan: QueryPlan,           # 已经过 QueryPlanner 解析，知道引用了哪些 entity
+        referenced_entities: list[str],   # 由调用方解析（不要求 PolicyEngine 理解 QueryPlan）
     ) -> AuthDecision: ...
+
+class AuthOutcome(Enum):
+    ALLOW = "allow"
+    DENY = "deny"
+    NEEDS_USER_APPROVAL = "needs_user_approval"   # 与现有 write confirm 流复用
 
 @dataclass
 class AuthDecision:
-    allowed: bool
+    outcome: AuthOutcome
     reason: str
     rewritten_sql: str | None        # 注入了 row filter / column mask 后的 SQL
     masked_columns: dict[str, str]   # 给执行结果做后处理
 ```
 
+**与 QueryPlanner 的执行顺序**：`authorize` 节点在 `generate_sql` 之后、`QueryPlanner.plan` 之前，对**未拆分的 unified SQL** 做 sqlglot 改写。改写后的 SQL 再交给 planner 拆 SubQuery —— 每个 SubQuery 自动继承 row filter / mask，**联邦查询天然受 RBAC 保护**，不需要让 PolicyEngine 理解 QueryPlan 结构。
+
+**SQL 改写策略（必须遵守）**：
+- 使用 sqlglot 解析 SQL → AST
+- 对 AST 中**每一个** `Table` 节点（包括 UNION / JOIN / 子查询里的）查询其对应 entity 的 `SecurityPolicy`
+- 若该 entity 有 `row_filter_template`：**包装该表**为 `(SELECT * FROM <table> WHERE <filter>) AS <alias>`，**不能**只在最外层 `WHERE` 加条件（恶意 UNION 会绕过）
+- 占位值通过 `sqlglot.exp.Literal.string(...)` / `Literal.number(...)` 注入，禁止字符串拼接
+
+**列脱敏策略（MVP）**：
+- **执行后 Python 后处理**（dialect-agnostic，简单）：`execute_sql_node` 在返回 rows 前对 `masked_columns` 列做 hash/redact/null 变换
+- 不在 SQL 改写阶段做脱敏（依赖方言函数，留给 Tier 2）
+- 审计 SQL 与原始 SQL 都不含敏感数据（仅元数据），脱敏只影响最终展示给用户的行
+
 MVP 提供两种实现：
 - `OntologyPolicyEngine`：从 RDF 注解读取，足够覆盖 80% 场景，OSS 用户开箱即用
 - `OPAClient`（Open Policy Agent，可选）：复杂客户走 Rego DSL，未来插入
-
-**关键约束**：rewritten_sql 是在 `QueryPlanner.plan` 之后、`Executor.execute` 之前注入的，因此对所有 SubQuery 自动生效，**联邦查询天然受 RBAC 保护**。
+- `NullPolicyEngine`：所有请求 `outcome=ALLOW, rewritten_sql=None`；测试与 OSS 默认
 
 ### 3.6 AuditLogger 接口
 
@@ -161,28 +196,54 @@ class AuditLogger(ABC):
 
 **审计记录是写后即不可改的事实**——不允许节点函数修改已 emit 的事件，也不能为了「整洁」聚合多条事件。
 
+**Audit 失败语义（fail-closed）**：
+- 生产部署：`AuditLogger.emit` 抛异常 = **拒绝该次查询**（fail-closed），返回 `AuthDecision(outcome=DENY, reason="audit_unavailable")`
+- MVP 默认：`JsonlAuditLogger` 写文件失败时 warn-and-continue（fail-open），但日志中显著告警
+- 生产部署的 fail-closed 由 config 开关控制：`audit.fail_mode: closed | open`，默认 `closed` 当 `audit.backend != jsonl`
+
+**Audit 内容边界**：仅记录元数据（who/when/what/SQL/row_count），**不记录 row data**——脱敏后的 row 也不行。这是合规线，不可让步。
+
 ### 3.7 与 LangGraph 的集成
 
-新增节点 `authorize`，插在 `generate_sql` 与 `execute_sql` 之间：
+新增节点 `authorize`，插在 `generate_sql` 与 `execute_sql` 之间。authorize 节点输出三态路由：
 
 ```
-classify_intent → generate_sql → authorize → execute_sql → format_result
+classify_intent → generate_sql → authorize ──allow──→ execute_sql → format_result
                                      │
-                                     └── deny → audit.emit(deny) → END(403)
+                                     ├──deny──────→ audit.emit(deny)  → END
+                                     │
+                                     └──needs_user_approval──→ END(等用户外部确认)
 ```
 
-`authorize` 节点：
-1. 调 `policy.authorize(principal, sql, plan)`
-2. 不通过 → 写 audit、返回拒绝响应
-3. 通过 → 写 `state["sql"] = decision.rewritten_sql`，继续
+`authorize` 节点行为：
+1. 解析 `state["sql"]` 出 `referenced_entities`（用 sqlglot；这里**不**调 planner，避免循环依赖）
+2. 调 `policy.authorize(principal, sql, referenced_entities)`
+3. `outcome=ALLOW` → 把 `decision.rewritten_sql` 写回 `state["sql"]`、`state["masked_columns"] = decision.masked_columns`，继续
+4. `outcome=DENY` → 写 audit、设置 `state["error"] = decision.reason`，路由到 END
+5. `outcome=NEEDS_USER_APPROVAL` → **复用既有 write confirm 路径**（CLI 弹确认 / Web 弹按钮），与现有 `_route_after_execute` 中的 `needs_approval` 分支汇合
 
-`execute_sql` 节点结尾**总是**调 `audit.emit(...)`，无论成功失败。
+`execute_sql` 节点：
+- 入口接收 `state["principal"]`、`state["masked_columns"]`
+- 出口**无论成功失败**都调 `audit.emit(...)`
+- 返回 rows 前应用 `masked_columns` 后处理（hash/redact/null）
+
+`AgentState` 新增字段（均 `total=False`）：
+```python
+principal: Principal | None        # 由 PrincipalProvider 在入口注入
+auth_decision: AuthDecision | None # 由 authorize 节点写入，audit/format 节点读取
+masked_columns: dict[str, str]     # 由 authorize 节点写入，execute 节点消费
+```
 
 ### 3.8 测试策略
 
-- 单元：`OntologyPolicyEngine` 对 6 类 case：无角色 / 角色不够 / 角色够 / 行过滤注入正确性 / 列脱敏 / 跨租户访问拒绝
-- 集成：完整 `principal=tenantA + 查 tenantB 数据` → 期待 `AuthDecision.allowed=False`，audit 留痕
-- 安全回归：恶意 SQL（`UNION SELECT * FROM other_tenant.users`）必须被 `rewritten_sql` 强制覆盖 row filter
+- **单元**（`OntologyPolicyEngine`）：无角色 / 角色不够 / 角色够 / 行过滤注入正确性 / 列脱敏后处理 / 跨租户访问拒绝 / 三态 outcome 路由 / null engine 默认 allow
+- **集成**：完整 `principal=tenantA + 查 tenantB 数据` → 期待 `AuthDecision.outcome=DENY`，audit 留痕
+- **安全回归**（关键）：
+  - `SELECT * FROM orders UNION SELECT * FROM other_tenant.orders` → rewrite 必须**两个表**都注入 row filter
+  - `SELECT * FROM (SELECT * FROM orders) AS sub` → 子查询里的 `orders` 也要注入
+  - `SELECT * FROM orders WHERE id IN (SELECT id FROM other_tenant.users)` → 内层 `users` 也要注入
+  - `attrs.region = 'APAC'); DROP TABLE orders;--` → `Literal.string` 转义后**不**被解释为 SQL 控制流
+- **180 baseline 不变**：所有现有测试在 `policy=None / audit=None` 默认下保持 180 绿
 
 ---
 
@@ -815,6 +876,8 @@ ENV=prod   k8s configmap + secret
 9. **节点函数不含业务逻辑**——只做 `AgentState` ↔ stage contract 的适配（详见 §12）
 10. **stage handler 是纯函数 + 注入依赖**——不读全局变量、不持有可变状态
 11. **任何阶段间数据流必须经过 contract**——禁止节点 A 直接写 state 字段被节点 B 隐式消费
+12. **生产部署的 audit 失败 = fail-closed**——`AuditLogger.emit` 抛异常时该次查询必须被拒绝；MVP 的 `JsonlAuditLogger` 可放宽为 warn-and-continue 但 prod backend（Postgres）默认 fail-closed
+13. **行过滤值仅经 sqlglot Literal 注入**——禁止字符串拼接 SQL；`row_filter_template` 中 `$principal.*` 占位的最终字面量必须由 `sqlglot.exp.Literal` 序列化
 
 ---
 
