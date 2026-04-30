@@ -21,6 +21,12 @@ Exports:
     ResultSetJudge: SQL-executing result-set judge.
     LLMJudge: LLM-scoring rubric judge.
     get_judge_for: Dispatcher that maps expectation kind → judge instance.
+    CaseResult: Result of running a single EvalCase.
+    RunSummary: Aggregated statistics for an eval run.
+    EvalRunner: Executes EvalCases and returns an EvalReport.
+    EvalReport: Structured container for a full evaluation run.
+    DiffReport: Diff between two EvalReports.
+    diff_reports: Compute the diff between two EvalReports.
 """
 from __future__ import annotations
 
@@ -46,6 +52,8 @@ from src.evaluation.judges import (
     SubstringContainsJudge,
     get_judge_for,
 )
+from src.evaluation.runner import CaseResult, EvalRunner, RunSummary
+from src.evaluation.report import DiffReport, EvalReport, diff_reports
 
 __all__ = [
     "EvalCase",
@@ -68,4 +76,10 @@ __all__ = [
     "ResultSetJudge",
     "LLMJudge",
     "get_judge_for",
+    "CaseResult",
+    "RunSummary",
+    "EvalRunner",
+    "EvalReport",
+    "DiffReport",
+    "diff_reports",
 ]
